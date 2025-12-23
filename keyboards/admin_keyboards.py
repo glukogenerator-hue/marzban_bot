@@ -1,3 +1,5 @@
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+
 def get_admin_keyboard() -> ReplyKeyboardMarkup:
     """Главное меню админа"""
     keyboard = [
