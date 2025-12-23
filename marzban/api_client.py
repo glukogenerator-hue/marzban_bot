@@ -65,7 +65,7 @@ class MarzbanAPI:
         data = {
             "username": username,
             "proxies": {
-                "vmess": {},
+                
                 "vless": {}
             },
             "data_limit": data_limit,
