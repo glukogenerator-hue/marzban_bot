@@ -201,7 +201,7 @@ async def copy_link(callback: CallbackQuery):
         "Нажмите на ссылку, чтобы скопировать.",
         parse_mode="HTML"
     )
-    await callback.answer()
+    
 
 
 @user_router.message(F.text == "💳 Купить подписку")
