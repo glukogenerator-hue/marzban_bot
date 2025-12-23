@@ -1,0 +1,29 @@
+def get_admin_keyboard() -> ReplyKeyboardMarkup:
+    """Главное меню админа"""
+    keyboard = [
+        [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="👥 Пользователи")],
+        [KeyboardButton(text="📨 Рассылка"), KeyboardButton(text="💬 Сообщения")],
+        [KeyboardButton(text="⚙️ Управление"), KeyboardButton(text="📋 Логи")],
+        [KeyboardButton(text="👤 Режим пользователя")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+def get_user_management_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура управления пользователем"""
+    keyboard = [
+        [InlineKeyboardButton(text="✏️ Изменить подписку", callback_data=f"admin_edit_{telegram_id}")],
+        [InlineKeyboardButton(text="⏸️ Приостановить", callback_data=f"admin_suspend_{telegram_id}")],
+        [InlineKeyboardButton(text="✅ Активировать", callback_data=f"admin_activate_{telegram_id}")],
+        [InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"admin_delete_{telegram_id}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_broadcast_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура рассылки"""
+    keyboard = [
+        [InlineKeyboardButton(text="📤 Отправить всем", callback_data="broadcast_all")],
+        [InlineKeyboardButton(text="✅ Активным", callback_data="broadcast_active")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="broadcast_cancel")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
