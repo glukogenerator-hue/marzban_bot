@@ -195,14 +195,12 @@ async def copy_link(callback: CallbackQuery):
     if not user.subscription_url:
         await callback.answer("❌ У вас нет активной подписки", show_alert=True)
         return
-   await callback.answer("✅ Ссылка скопирована в буфер обмена!")  
-   await callback.message.answer(
-        f"Ваша подписка:\n<code>{user.subscription_url}</code>\n\n"
-        "Нажмите на ссылку, чтобы скопировать.",
+    
+    await callback.answer("✅ Ссылка скопирована в буфер обмена!")
+    await callback.message.answer(
+        f"Ваша ссылка:\n<code>{user.subscription_url}</code>",
         parse_mode="HTML"
     )
-    
-
 
 @user_router.message(F.text == "💳 Купить подписку")
 @user_registered
