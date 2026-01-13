@@ -10,31 +10,26 @@ class Settings(BaseSettings):
     @field_validator('ADMIN_IDS', mode='before')
     @classmethod
     def parse_admin_ids(cls, v):
-        """Парсинг ADMIN_IDS из строки или списка"""
-        print(f"DEBUG parse_admin_ids: received value = '{v}' (type: {type(v)})")
-        
+        """Парсинг ADMIN_IDS из строки, списка или int"""
         if v is None:
-            print("DEBUG: v is None, returning []")
             return []
         
         # Если уже список, возвращаем как есть
         if isinstance(v, list):
-            result = [int(x) for x in v if x]
-            print(f"DEBUG: v is list, returning {result}")
-            return result
+            return [int(x) for x in v if x]
+        
+        # Если int (одно значение)
+        if isinstance(v, int):
+            return [v]
         
         # Если строка
         if isinstance(v, str):
             # Убираем квадратные скобки если есть
             v_cleaned = v.strip().strip('[]')
-            print(f"DEBUG: v is string, cleaned = '{v_cleaned}'")
             # Если строка, разбиваем по запятым и конвертируем в int
             if v_cleaned:
-                result = [int(x.strip()) for x in v_cleaned.split(',') if x.strip()]
-                print(f"DEBUG: parsed result = {result}")
-                return result
+                return [int(x.strip()) for x in v_cleaned.split(',') if x.strip()]
         
-        print("DEBUG: returning empty list")
         return []
     
     @field_validator('ADMIN_IDS', mode='after')
