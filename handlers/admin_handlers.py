@@ -17,6 +17,7 @@ admin_router = Router()
 class AdminStates(StatesGroup):
     waiting_for_broadcast = State()
     waiting_for_user_search = State()
+    waiting_for_reply = State()
 
 @admin_router.message(Command("admin"))
 @admin_only
@@ -316,32 +317,41 @@ async def process_broadcast(callback: CallbackQuery, state: FSMContext):
 @admin_only
 async def show_messages(message: Message):
     """Показать непрочитанные сообщения"""
+    from keyboards.admin_keyboards import get_message_keyboard
+    
     messages = await db_manager.get_unread_messages()
     
     if not messages:
         await message.answer("✅ Нет непрочитанных сообщений")
         return
     
-    text = f"💬 <b>Непрочитанных сообщений: {len(messages)}</b>\n\n"
-    
-    for msg in messages[:5]:
+    # Показываем сообщения по одному с кнопкой ответа
+    for msg in messages[:10]:  # Показываем до 10 сообщений
         user = await db_manager.get_user(msg.from_telegram_id)
         username = f"@{user.username}" if user and user.username else "Без username"
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Неизвестно"
         
-        text += (
-            f"От: {user.first_name if user else 'Неизвестно'} {username}\n"
-            f"ID: <code>{msg.from_telegram_id}</code>\n"
-            f"Сообщение: {msg.message_text[:100]}...\n"
-            f"Время: {format_date(msg.created_at)}\n\n"
+        text = (
+            f"💬 <b>Сообщение от пользователя</b>\n\n"
+            f"👤 Имя: {full_name}\n"
+            f"📱 Username: {username}\n"
+            f"🆔 ID: <code>{msg.from_telegram_id}</code>\n"
+            f"📅 Время: {format_date(msg.created_at)}\n\n"
+            f"💭 Сообщение:\n{msg.message_text}"
         )
         
         # Отмечаем как прочитанное
         await db_manager.mark_message_read(msg.id)
+        
+        # Отправляем с кнопкой ответа
+        await message.answer(
+            text,
+            reply_markup=get_message_keyboard(msg.from_telegram_id, msg.id),
+            parse_mode="HTML"
+        )
     
-    if len(messages) > 5:
-        text += f"...и еще {len(messages) - 5} сообщений"
-    
-    await message.answer(text, parse_mode="HTML")
+    if len(messages) > 10:
+        await message.answer(f"📬 ...и еще {len(messages) - 10} сообщений")
 
 @admin_router.message(F.text == "👤 Режим пользователя")
 @admin_only
@@ -362,31 +372,71 @@ async def user_mode(message: Message):
 async def show_logs(message: Message):
     """Показать последние логи"""
     try:
+        import aiofiles
         from pathlib import Path
+        
         log_path = Path(settings.LOG_FILE)
         
         if not log_path.exists():
             await message.answer("❌ Файл логов не найден")
             return
         
-        with open(log_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            last_lines = lines[-20:] if len(lines) > 20 else lines
+        # Асинхронное чтение файла
+        async with aiofiles.open(log_path, 'r', encoding='utf-8') as f:
+            lines = await f.readlines()
+            last_lines = lines[-30:] if len(lines) > 30 else lines
             
         log_text = ''.join(last_lines)
         
         # Telegram имеет лимит на длину сообщения (4096 символов)
         if len(log_text) > 4000:
             log_text = log_text[-4000:]
+            log_text = "... (показаны последние 4000 символов)\n\n" + log_text
+        
+        if not log_text.strip():
+            await message.answer("📋 Лог файл пуст")
+            return
         
         await message.answer(
-            f"📋 <b>Последние записи лога:</b>\n\n"
+            f"📋 <b>Последние записи лога ({len(last_lines)} строк):</b>\n\n"
             f"<code>{log_text}</code>",
             parse_mode="HTML"
         )
+    except ImportError:
+        # Если aiofiles не установлен, используем обычное чтение
+        try:
+            from pathlib import Path
+            log_path = Path(settings.LOG_FILE)
+            
+            if not log_path.exists():
+                await message.answer("❌ Файл логов не найден")
+                return
+            
+            with open(log_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                last_lines = lines[-30:] if len(lines) > 30 else lines
+                
+            log_text = ''.join(last_lines)
+            
+            if len(log_text) > 4000:
+                log_text = log_text[-4000:]
+                log_text = "... (показаны последние 4000 символов)\n\n" + log_text
+            
+            if not log_text.strip():
+                await message.answer("📋 Лог файл пуст")
+                return
+            
+            await message.answer(
+                f"📋 <b>Последние записи лога ({len(last_lines)} строк):</b>\n\n"
+                f"<code>{log_text}</code>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Failed to read logs: {e}")
+            await message.answer(f"❌ Не удалось прочитать логи: {e}")
     except Exception as e:
         logger.error(f"Failed to read logs: {e}")
-        await message.answer("❌ Не удалось прочитать логи")
+        await message.answer(f"❌ Не удалось прочитать логи: {e}")
 
 @admin_router.message(F.text == "⚙️ Управление")
 @admin_only
@@ -441,3 +491,124 @@ async def admin_back(callback: CallbackQuery):
     """Вернуться в админ панель"""
     await callback.message.delete()
     await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("reply_to_"))
+@admin_only
+async def start_reply_to_user(callback: CallbackQuery, state: FSMContext):
+    """Начать ответ пользователю"""
+    try:
+        parts = callback.data.split("_")
+        user_telegram_id = int(parts[2])
+        message_id = int(parts[3]) if len(parts) > 3 else None
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения данных", show_alert=True)
+        return
+    
+    user = await db_manager.get_user(user_telegram_id)
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+    
+    # Сохраняем данные в состоянии
+    await state.update_data(
+        reply_to_user_id=user_telegram_id,
+        reply_to_message_id=message_id
+    )
+    await state.set_state(AdminStates.waiting_for_reply)
+    
+    username = f"@{user.username}" if user.username else "без username"
+    text = (
+        f"💬 <b>Ответ пользователю</b>\n\n"
+        f"👤 Получатель: {user.first_name or 'Неизвестно'} {username}\n"
+        f"🆔 ID: <code>{user_telegram_id}</code>\n\n"
+        f"✏️ Напишите ваш ответ:\n"
+        f"(Для отмены используйте /cancel)"
+    )
+    
+    await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("mark_read_"))
+@admin_only
+async def mark_message_read_callback(callback: CallbackQuery):
+    """Отметить сообщение прочитанным"""
+    try:
+        message_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID сообщения", show_alert=True)
+        return
+    
+    success = await db_manager.mark_message_read(message_id)
+    if success:
+        await callback.answer("✅ Сообщение отмечено как прочитанное")
+        # Обновляем сообщение, убирая кнопку
+        try:
+            text = callback.message.text or callback.message.caption or ""
+            await callback.message.edit_text(text, parse_mode="HTML")
+        except:
+            pass
+    else:
+        await callback.answer("❌ Не удалось отметить сообщение", show_alert=True)
+
+@admin_router.message(AdminStates.waiting_for_reply)
+@admin_only
+async def process_reply_to_user(message: Message, state: FSMContext):
+    """Обработка ответа пользователю"""
+    if message.text == "/cancel":
+        await state.clear()
+        from keyboards.admin_keyboards import get_admin_keyboard
+        await message.answer("❌ Ответ отменен", reply_markup=get_admin_keyboard())
+        return
+    
+    data = await state.get_data()
+    user_telegram_id = data.get("reply_to_user_id")
+    reply_to_message_id = data.get("reply_to_message_id")
+    
+    if not user_telegram_id:
+        await message.answer("❌ Ошибка: не найден получатель")
+        await state.clear()
+        return
+    
+    # Валидация сообщения
+    if not message.text or len(message.text.strip()) == 0:
+        await message.answer("❌ Сообщение не может быть пустым. Попробуйте еще раз или используйте /cancel")
+        return
+    
+    if len(message.text) > 4000:
+        await message.answer("❌ Сообщение слишком длинное (максимум 4000 символов). Попробуйте еще раз или используйте /cancel")
+        return
+    
+    try:
+        # Отправляем сообщение пользователю
+        await message.bot.send_message(
+            user_telegram_id,
+            f"💬 <b>Ответ от администратора:</b>\n\n{message.text}",
+            parse_mode="HTML"
+        )
+        
+        # Сохраняем ответ в БД
+        await db_manager.create_message(
+            from_telegram_id=message.from_user.id,
+            message_text=message.text,
+            to_telegram_id=user_telegram_id
+        )
+        
+        user = await db_manager.get_user(user_telegram_id)
+        username = f"@{user.username}" if user and user.username else "без username"
+        
+        from keyboards.admin_keyboards import get_admin_keyboard
+        await message.answer(
+            f"✅ Ответ отправлен пользователю {user.first_name if user else 'Неизвестно'} {username}",
+            reply_markup=get_admin_keyboard()
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to send reply to user {user_telegram_id}: {e}")
+        from keyboards.admin_keyboards import get_admin_keyboard
+        await message.answer(
+            f"❌ Не удалось отправить ответ: {e}\n\n"
+            f"Возможно, пользователь заблокировал бота.",
+            reply_markup=get_admin_keyboard()
+        )
+    
+    await state.clear()

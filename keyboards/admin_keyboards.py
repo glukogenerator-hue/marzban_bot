@@ -29,3 +29,11 @@ def get_broadcast_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="❌ Отмена", callback_data="broadcast_cancel")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_message_keyboard(user_telegram_id: int, message_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура для сообщения от пользователя"""
+    keyboard = [
+        [InlineKeyboardButton(text="💬 Ответить", callback_data=f"reply_to_{user_telegram_id}_{message_id}")],
+        [InlineKeyboardButton(text="✅ Прочитано", callback_data=f"mark_read_{message_id}")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
