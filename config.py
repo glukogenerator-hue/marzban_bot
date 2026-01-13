@@ -11,14 +11,37 @@ class Settings(BaseSettings):
     @classmethod
     def parse_admin_ids(cls, v):
         """Парсинг ADMIN_IDS из строки или списка"""
+        print(f"DEBUG parse_admin_ids: received value = '{v}' (type: {type(v)})")
+        
+        if v is None:
+            print("DEBUG: v is None, returning []")
+            return []
+        
+        # Если уже список, возвращаем как есть
+        if isinstance(v, list):
+            result = [int(x) for x in v if x]
+            print(f"DEBUG: v is list, returning {result}")
+            return result
+        
+        # Если строка
         if isinstance(v, str):
             # Убираем квадратные скобки если есть
-            v = v.strip().strip('[]')
+            v_cleaned = v.strip().strip('[]')
+            print(f"DEBUG: v is string, cleaned = '{v_cleaned}'")
             # Если строка, разбиваем по запятым и конвертируем в int
-            if v:
-                return [int(x.strip()) for x in v.split(',') if x.strip()]
-            return []
-        elif isinstance(v, list):
+            if v_cleaned:
+                result = [int(x.strip()) for x in v_cleaned.split(',') if x.strip()]
+                print(f"DEBUG: parsed result = {result}")
+                return result
+        
+        print("DEBUG: returning empty list")
+        return []
+    
+    @field_validator('ADMIN_IDS', mode='after')
+    @classmethod
+    def ensure_list(cls, v):
+        """Убеждаемся, что результат - список"""
+        if isinstance(v, list):
             return v
         return []
     
