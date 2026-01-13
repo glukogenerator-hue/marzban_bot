@@ -25,7 +25,9 @@ async def main():
     # Инициализация БД
     await db_manager.init_db()
     
-    logger.info("Bot started")
+    # Логируем загруженные настройки
+    logger.info(f"Bot started")
+    logger.info(f"Admin IDs loaded: {settings.ADMIN_IDS} (type: {type(settings.ADMIN_IDS)})")
     
     try:
         # Уведомляем админов о запуске

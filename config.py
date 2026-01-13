@@ -12,8 +12,12 @@ class Settings(BaseSettings):
     def parse_admin_ids(cls, v):
         """Парсинг ADMIN_IDS из строки или списка"""
         if isinstance(v, str):
+            # Убираем квадратные скобки если есть
+            v = v.strip().strip('[]')
             # Если строка, разбиваем по запятым и конвертируем в int
-            return [int(x.strip()) for x in v.split(',') if x.strip()]
+            if v:
+                return [int(x.strip()) for x in v.split(',') if x.strip()]
+            return []
         elif isinstance(v, list):
             return v
         return []
