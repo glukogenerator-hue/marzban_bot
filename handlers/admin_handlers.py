@@ -577,6 +577,8 @@ async def edit_user_subscription(callback: CallbackQuery):
         expire_date = datetime.fromtimestamp(usage['expire']) if usage.get('expire') else user.expire_date
         data_limit = usage.get('data_limit', 0) or user.data_limit or 0
         
+        from keyboards.admin_keyboards import get_subscription_edit_keyboard
+        
         text = (
             f"✏️ <b>Редактирование подписки</b>\n\n"
             f"Пользователь: {user.first_name or 'Не указано'} (@{user.username or 'нет'})\n"
@@ -586,12 +588,15 @@ async def edit_user_subscription(callback: CallbackQuery):
             f"• Использовано: {format_bytes(usage.get('used_traffic', 0))}\n"
             f"• Истекает: {format_date(expire_date)}\n"
             f"• Статус: {'✅ Активна' if usage.get('status') == 'active' else '❌ Неактивна'}\n\n"
-            f"⚠️ Функция редактирования подписки в разработке.\n"
-            f"Используйте API Marzban для ручного редактирования."
+            f"Выберите действие:"
         )
         
         try:
-            await callback.message.edit_text(text, parse_mode="HTML")
+            await callback.message.edit_text(
+                text,
+                reply_markup=get_subscription_edit_keyboard(telegram_id),
+                parse_mode="HTML"
+            )
         except Exception as edit_error:
             # Если сообщение не изменилось, это не критичная ошибка
             error_msg = str(edit_error).lower()
@@ -600,13 +605,19 @@ async def edit_user_subscription(callback: CallbackQuery):
                 pass
             else:
                 # Другая ошибка - отправляем новое сообщение
-                await callback.message.answer(text, parse_mode="HTML")
+                await callback.message.answer(
+                    text,
+                    reply_markup=get_subscription_edit_keyboard(telegram_id),
+                    parse_mode="HTML"
+                )
         
         await callback.answer("✅ Информация обновлена")
         
     except Exception as e:
         logger.error(f"Failed to get user usage for edit: {e}")
         # Показываем информацию из БД если не удалось получить из Marzban
+        from keyboards.admin_keyboards import get_subscription_edit_keyboard
+        
         text = (
             f"✏️ <b>Редактирование подписки</b>\n\n"
             f"Пользователь: {user.first_name or 'Не указано'} (@{user.username or 'нет'})\n"
@@ -616,18 +627,93 @@ async def edit_user_subscription(callback: CallbackQuery):
             f"• Использовано: {format_bytes(user.used_traffic or 0)}\n"
             f"• Истекает: {format_date(user.expire_date)}\n"
             f"• Статус: {'✅ Активна' if user.is_active else '❌ Неактивна'}\n\n"
-            f"⚠️ Не удалось получить актуальные данные из Marzban.\n"
-            f"Используйте API Marzban для ручного редактирования."
+            f"Выберите действие:"
         )
         
         try:
-            await callback.message.edit_text(text, parse_mode="HTML")
+            await callback.message.edit_text(
+                text,
+                reply_markup=get_subscription_edit_keyboard(telegram_id),
+                parse_mode="HTML"
+            )
         except Exception as edit_error:
             error_msg = str(edit_error).lower()
             if "message is not modified" not in error_msg and "message_not_modified" not in error_msg:
-                await callback.message.answer(text, parse_mode="HTML")
+                await callback.message.answer(
+                    text,
+                    reply_markup=get_subscription_edit_keyboard(telegram_id),
+                    parse_mode="HTML"
+                )
         
         await callback.answer("⚠️ Использованы данные из БД")
+
+@admin_router.callback_query(F.data.startswith("admin_extend_"))
+@admin_only
+async def extend_user_subscription(callback: CallbackQuery):
+    """Продлить подписку пользователя"""
+    try:
+        parts = callback.data.split("_")
+        telegram_id = int(parts[2])
+        days = int(parts[3])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения данных", show_alert=True)
+        return
+    
+    user = await db_manager.get_user(telegram_id)
+    
+    if not user or not user.marzban_username:
+        await callback.answer("❌ Пользователь не найден или не имеет подписки", show_alert=True)
+        return
+    
+    try:
+        # Получаем текущую информацию из Marzban
+        usage = await marzban_api.get_user_usage(user.marzban_username)
+        current_expire = usage.get('expire', 0)
+        
+        # Вычисляем новую дату истечения
+        if current_expire:
+            current_expire_dt = datetime.fromtimestamp(current_expire)
+            # Если подписка уже истекла, начинаем с текущей даты
+            if current_expire_dt < datetime.utcnow():
+                new_expire = datetime.utcnow() + timedelta(days=days)
+            else:
+                # Продлеваем от текущей даты истечения
+                new_expire = current_expire_dt + timedelta(days=days)
+        else:
+            # Если нет даты истечения, начинаем с текущей даты
+            new_expire = datetime.utcnow() + timedelta(days=days)
+        
+        new_expire_timestamp = int(new_expire.timestamp())
+        
+        # Обновляем в Marzban через прямой запрос с timestamp
+        token = await marzban_api._get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        session = await marzban_api._get_session()
+        
+        async with session.put(
+            f"{marzban_api.base_url}/api/user/{user.marzban_username}",
+            headers=headers,
+            json={"expire": new_expire_timestamp, "status": "active"}
+        ) as resp:
+            if resp.status not in [200, 201]:
+                error_text = await resp.text()
+                raise Exception(f"Failed to update expire: {resp.status} - {error_text}")
+        
+        # Обновляем в БД
+        await db_manager.update_user(
+            user.telegram_id,
+            expire_date=new_expire,
+            is_active=True
+        )
+        
+        await callback.answer(f"✅ Подписка продлена на {days} дней!")
+        
+        # Обновляем информацию о пользователе
+        await show_user_info(telegram_id, callback=callback)
+        
+    except Exception as e:
+        logger.error(f"Failed to extend subscription: {e}")
+        await callback.answer(f"❌ Не удалось продлить подписку: {str(e)[:50]}", show_alert=True)
 
 @admin_router.callback_query(F.data == "admin_back")
 @admin_only

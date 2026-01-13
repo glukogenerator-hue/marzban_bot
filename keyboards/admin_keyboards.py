@@ -21,6 +21,16 @@ def get_user_management_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+def get_subscription_edit_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура редактирования подписки"""
+    keyboard = [
+        [InlineKeyboardButton(text="➕ Продлить на 7 дней", callback_data=f"admin_extend_{telegram_id}_7")],
+        [InlineKeyboardButton(text="➕ Продлить на 30 дней", callback_data=f"admin_extend_{telegram_id}_30")],
+        [InlineKeyboardButton(text="➕ Продлить на 90 дней", callback_data=f"admin_extend_{telegram_id}_90")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_user_{telegram_id}")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 def get_broadcast_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура рассылки"""
     keyboard = [
