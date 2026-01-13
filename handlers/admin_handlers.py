@@ -347,10 +347,14 @@ async def show_messages(message: Message):
 @admin_only
 async def user_mode(message: Message):
     """Переключить в режим пользователя"""
+    # Проверяем наличие подписки у админа
+    user = await db_manager.get_user(message.from_user.id)
+    has_subscription = user.marzban_username is not None and user.is_active if user else False
+    
     await message.answer(
         "👤 Вы переключены в режим пользователя\n\n"
         "Для возврата используйте /admin",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(has_subscription=has_subscription)
     )
 
 @admin_router.message(F.text == "📋 Логи")

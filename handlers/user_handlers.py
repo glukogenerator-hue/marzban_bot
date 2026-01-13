@@ -42,7 +42,10 @@ async def cmd_start(message: Message):
             f"Используйте меню для управления подпиской."
         )
     
-    await message.answer(welcome_text, reply_markup=get_main_keyboard())
+    # Проверяем наличие активной подписки
+    has_subscription = user.marzban_username is not None and user.is_active
+    
+    await message.answer(welcome_text, reply_markup=get_main_keyboard(has_subscription=has_subscription))
 
 @user_router.message(F.text == "📊 Моя подписка")
 @user_registered
@@ -238,7 +241,9 @@ async def process_admin_message(message: Message, state: FSMContext):
     """Обработка сообщения админу"""
     if message.text == "/cancel":
         await state.clear()
-        await message.answer("❌ Отменено", reply_markup=get_main_keyboard())
+        user = await db_manager.get_user(message.from_user.id)
+        has_subscription = user.marzban_username is not None and user.is_active if user else False
+        await message.answer("❌ Отменено", reply_markup=get_main_keyboard(has_subscription=has_subscription))
         return
     
     # Валидация сообщения
@@ -271,9 +276,11 @@ async def process_admin_message(message: Message, state: FSMContext):
             logger.error(f"Failed to notify admin {admin_id}: {e}")
     
     await state.clear()
+    user = await db_manager.get_user(message.from_user.id)
+    has_subscription = user.marzban_username is not None and user.is_active if user else False
     await message.answer(
         "✅ Ваше сообщение отправлено администратору!",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(has_subscription=has_subscription)
     )
 
 @user_router.message(F.text == "⚙️ Настройки")
@@ -491,6 +498,11 @@ async def renew_subscription(message: Message):
     
     if not user.marzban_username:
         await message.answer("❌ У вас нет активной подписки")
+        # Обновляем клавиатуру, так как подписки нет
+        await message.answer(
+            "Используйте меню ниже:",
+            reply_markup=get_main_keyboard(has_subscription=False)
+        )
         return
     
     text = (

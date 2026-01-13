@@ -1,13 +1,26 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Главное меню пользователя"""
+def get_main_keyboard(has_subscription: bool = False) -> ReplyKeyboardMarkup:
+    """Главное меню пользователя
+    
+    Args:
+        has_subscription: True если у пользователя есть активная подписка
+    """
     keyboard = [
         [KeyboardButton(text="📊 Моя подписка"), KeyboardButton(text="🔗 Подключение")],
-        [KeyboardButton(text="💳 Купить подписку"), KeyboardButton(text="🔄 Продлить подписку")],
+    ]
+    
+    # Показываем разные кнопки в зависимости от наличия подписки
+    if has_subscription:
+        keyboard.append([KeyboardButton(text="🔄 Продлить подписку")])
+    else:
+        keyboard.append([KeyboardButton(text="💳 Купить подписку")])
+    
+    keyboard.extend([
         [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="💬 Написать админу")],
         [KeyboardButton(text="ℹ️ Помощь")]
-    ]
+    ])
+    
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def get_settings_keyboard() -> InlineKeyboardMarkup:
