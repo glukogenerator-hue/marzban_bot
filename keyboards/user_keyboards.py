@@ -27,10 +27,7 @@ def get_subscription_keyboard(has_trial: bool) -> InlineKeyboardMarkup:
     if not has_trial:
         keyboard.append([InlineKeyboardButton(text="🎁 Получить тестовый доступ", callback_data="get_trial")])
     
-    keyboard.extend([
-        [InlineKeyboardButton(text="💳 Тарифы", callback_data="view_plans")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_subscription")]
-    ])
+    keyboard.append([InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_subscription")])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
