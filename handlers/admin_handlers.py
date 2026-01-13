@@ -562,20 +562,71 @@ async def edit_user_subscription(callback: CallbackQuery):
         await callback.answer("❌ Пользователь не найден или не имеет подписки", show_alert=True)
         return
     
-    text = (
-        f"✏️ <b>Редактирование подписки</b>\n\n"
-        f"Пользователь: {user.first_name} (@{user.username or 'нет'})\n"
-        f"Marzban: <code>{user.marzban_username}</code>\n\n"
-        f"Текущие параметры:\n"
-        f"• Трафик: {format_bytes(user.data_limit or 0)}\n"
-        f"• Истекает: {format_date(user.expire_date)}\n"
-        f"• Статус: {'✅ Активна' if user.is_active else '❌ Неактивна'}\n\n"
-        f"⚠️ Функция редактирования подписки в разработке.\n"
-        f"Используйте API Marzban для ручного редактирования."
-    )
-    
-    await callback.message.edit_text(text, parse_mode="HTML")
-    await callback.answer()
+    # Получаем актуальную информацию из Marzban
+    try:
+        usage = await marzban_api.get_user_usage(user.marzban_username)
+        
+        # Обновляем данные в БД
+        await db_manager.update_user(
+            user.telegram_id,
+            used_traffic=usage['used_traffic'],
+            is_active=(usage['status'] == 'active')
+        )
+        
+        expire_date = datetime.fromtimestamp(usage['expire']) if usage.get('expire') else user.expire_date
+        data_limit = usage.get('data_limit', 0) or user.data_limit or 0
+        
+        text = (
+            f"✏️ <b>Редактирование подписки</b>\n\n"
+            f"Пользователь: {user.first_name or 'Не указано'} (@{user.username or 'нет'})\n"
+            f"Marzban: <code>{user.marzban_username}</code>\n\n"
+            f"Текущие параметры:\n"
+            f"• Трафик: {format_bytes(data_limit) if data_limit else '♾️ Безлимит'}\n"
+            f"• Использовано: {format_bytes(usage.get('used_traffic', 0))}\n"
+            f"• Истекает: {format_date(expire_date)}\n"
+            f"• Статус: {'✅ Активна' if usage.get('status') == 'active' else '❌ Неактивна'}\n\n"
+            f"⚠️ Функция редактирования подписки в разработке.\n"
+            f"Используйте API Marzban для ручного редактирования."
+        )
+        
+        try:
+            await callback.message.edit_text(text, parse_mode="HTML")
+        except Exception as edit_error:
+            # Если сообщение не изменилось, это не критичная ошибка
+            error_msg = str(edit_error).lower()
+            if "message is not modified" in error_msg or "message_not_modified" in error_msg:
+                # Данные не изменились, просто подтверждаем
+                pass
+            else:
+                # Другая ошибка - отправляем новое сообщение
+                await callback.message.answer(text, parse_mode="HTML")
+        
+        await callback.answer("✅ Информация обновлена")
+        
+    except Exception as e:
+        logger.error(f"Failed to get user usage for edit: {e}")
+        # Показываем информацию из БД если не удалось получить из Marzban
+        text = (
+            f"✏️ <b>Редактирование подписки</b>\n\n"
+            f"Пользователь: {user.first_name or 'Не указано'} (@{user.username or 'нет'})\n"
+            f"Marzban: <code>{user.marzban_username}</code>\n\n"
+            f"Текущие параметры (из БД):\n"
+            f"• Трафик: {format_bytes(user.data_limit or 0) if user.data_limit else '♾️ Безлимит'}\n"
+            f"• Использовано: {format_bytes(user.used_traffic or 0)}\n"
+            f"• Истекает: {format_date(user.expire_date)}\n"
+            f"• Статус: {'✅ Активна' if user.is_active else '❌ Неактивна'}\n\n"
+            f"⚠️ Не удалось получить актуальные данные из Marzban.\n"
+            f"Используйте API Marzban для ручного редактирования."
+        )
+        
+        try:
+            await callback.message.edit_text(text, parse_mode="HTML")
+        except Exception as edit_error:
+            error_msg = str(edit_error).lower()
+            if "message is not modified" not in error_msg and "message_not_modified" not in error_msg:
+                await callback.message.answer(text, parse_mode="HTML")
+        
+        await callback.answer("⚠️ Использованы данные из БД")
 
 @admin_router.callback_query(F.data == "admin_back")
 @admin_only

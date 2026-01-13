@@ -430,7 +430,17 @@ async def refresh_subscription(callback: CallbackQuery):
             f"⏳ Осталось дней: {days_left}\n"
         )
         
-        await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
+        try:
+            await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
+        except Exception as edit_error:
+            # Если сообщение не изменилось, это не критичная ошибка
+            error_msg = str(edit_error).lower()
+            if "message is not modified" in error_msg or "message_not_modified" in error_msg:
+                # Данные не изменились, просто подтверждаем обновление
+                pass
+            else:
+                # Другая ошибка - логируем
+                logger.warning(f"Failed to edit message: {edit_error}")
         
     except Exception as e:
         logger.error(f"Failed to refresh subscription: {e}")
