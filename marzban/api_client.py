@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from config import settings
@@ -11,51 +12,103 @@ class MarzbanAPI:
         self.password = settings.MARZBAN_PASSWORD
         self.token: Optional[str] = None
         self.token_expires: Optional[datetime] = None
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._timeout = aiohttp.ClientTimeout(total=settings.API_TIMEOUT)
+    
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Получить или создать сессию с connection pooling"""
+        if self._session is None or self._session.closed:
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+            self._session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=self._timeout
+            )
+        return self._session
+    
+    async def close(self):
+        """Закрыть сессию"""
+        if self._session and not self._session.closed:
+            await self._session.close()
     
     async def _get_token(self) -> str:
-        """Получить токен авторизации"""
+        """Получить токен авторизации с retry логикой"""
         if self.token and self.token_expires and datetime.utcnow() < self.token_expires:
             return self.token
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/api/admin/token",
-                data={
-                    "username": self.username,
-                    "password": self.password
-                }
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self.token = data["access_token"]
-                    self.token_expires = datetime.utcnow() + timedelta(hours=1)
-                    logger.info("Marzban token obtained")
-                    return self.token
+        session = await self._get_session()
+        
+        for attempt in range(settings.API_RETRY_ATTEMPTS):
+            try:
+                async with session.post(
+                    f"{self.base_url}/api/admin/token",
+                    data={
+                        "username": self.username,
+                        "password": self.password
+                    }
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self.token = data["access_token"]
+                        self.token_expires = datetime.utcnow() + timedelta(hours=1)
+                        logger.info("Marzban token obtained")
+                        return self.token
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Failed to get token (attempt {attempt + 1}): {error_text}")
+                        if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                            await asyncio.sleep(settings.API_RETRY_DELAY * (attempt + 1))
+                        else:
+                            raise Exception(f"Failed to authenticate: {resp.status}")
+            except Exception as e:
+                if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                    await asyncio.sleep(settings.API_RETRY_DELAY * (attempt + 1))
                 else:
-                    error_text = await resp.text()
-                    logger.error(f"Failed to get token: {error_text}")
-                    raise Exception(f"Failed to authenticate: {resp.status}")
+                    logger.error(f"Failed to get token after {settings.API_RETRY_ATTEMPTS} attempts: {e}")
+                    raise
     
     async def _make_request(self, method: str, endpoint: str, 
                            data: Dict = None, params: Dict = None) -> Dict[str, Any]:
-        """Выполнить запрос к API"""
+        """Выполнить запрос к API с retry логикой"""
         token = await self._get_token()
         headers = {"Authorization": f"Bearer {token}"}
+        session = await self._get_session()
         
-        async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method,
-                f"{self.base_url}{endpoint}",
-                headers=headers,
-                json=data,
-                params=params
-            ) as resp:
-                if resp.status in [200, 201]:
-                    return await resp.json()
-                else:
+        for attempt in range(settings.API_RETRY_ATTEMPTS):
+            try:
+                async with session.request(
+                    method,
+                    f"{self.base_url}{endpoint}",
+                    headers=headers,
+                    json=data,
+                    params=params
+                ) as resp:
+                    if resp.status in [200, 201]:
+                        return await resp.json()
+                    elif resp.status == 401:
+                        # Token expired, refresh it
+                        self.token = None
+                        token = await self._get_token()
+                        headers = {"Authorization": f"Bearer {token}"}
+                        if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                            continue
+                    
                     error_text = await resp.text()
-                    logger.error(f"API request failed: {method} {endpoint} - {error_text}")
-                    raise Exception(f"API request failed: {resp.status} - {error_text}")
+                    logger.error(f"API request failed (attempt {attempt + 1}): {method} {endpoint} - {error_text}")
+                    if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                        await asyncio.sleep(settings.API_RETRY_DELAY * (attempt + 1))
+                    else:
+                        raise Exception(f"API request failed: {resp.status} - {error_text}")
+            except asyncio.TimeoutError:
+                if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                    await asyncio.sleep(settings.API_RETRY_DELAY * (attempt + 1))
+                else:
+                    logger.error(f"API request timeout after {settings.API_RETRY_ATTEMPTS} attempts: {method} {endpoint}")
+                    raise Exception(f"API request timeout: {method} {endpoint}")
+            except Exception as e:
+                if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                    await asyncio.sleep(settings.API_RETRY_DELAY * (attempt + 1))
+                else:
+                    raise
     
     async def create_user(self, username: str, data_limit: int, 
                          expire_days: int) -> Dict[str, Any]:

@@ -98,12 +98,21 @@ async def show_subscription(message: Message):
     await message.answer(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
 
 @user_router.callback_query(F.data == "get_trial")
+@user_registered
 async def get_trial_access(callback: CallbackQuery):
     """Получить тестовый доступ"""
     user = await db_manager.get_user(callback.from_user.id)
     
+    if not user:
+        await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+    
     if user.trial_used:
         await callback.answer("❌ Вы уже использовали тестовый доступ", show_alert=True)
+        return
+    
+    if user.marzban_username:
+        await callback.answer("❌ У вас уже есть активная подписка", show_alert=True)
         return
     
     try:
@@ -165,6 +174,7 @@ async def show_connection(message: Message):
     await message.answer(text, reply_markup=get_connection_keyboard(), parse_mode="HTML")
 
 @user_router.callback_query(F.data == "get_qr")
+@user_registered
 async def send_qr_code(callback: CallbackQuery):
     """Отправить QR код"""
     user = await db_manager.get_user(callback.from_user.id)
@@ -188,6 +198,7 @@ async def send_qr_code(callback: CallbackQuery):
         await callback.answer("❌ Не удалось создать QR код", show_alert=True)
 
 @user_router.callback_query(F.data == "copy_link")
+@user_registered
 async def copy_link(callback: CallbackQuery):
     """Скопировать ссылку"""
     user = await db_manager.get_user(callback.from_user.id)
@@ -230,6 +241,15 @@ async def process_admin_message(message: Message, state: FSMContext):
         await message.answer("❌ Отменено", reply_markup=get_main_keyboard())
         return
     
+    # Валидация сообщения
+    if not message.text or len(message.text.strip()) == 0:
+        await message.answer("❌ Сообщение не может быть пустым. Попробуйте еще раз или используйте /cancel")
+        return
+    
+    if len(message.text) > 4000:
+        await message.answer("❌ Сообщение слишком длинное (максимум 4000 символов). Попробуйте еще раз или используйте /cancel")
+        return
+    
     # Сохраняем сообщение в БД
     await db_manager.create_message(
         from_telegram_id=message.from_user.id,
@@ -255,3 +275,249 @@ async def process_admin_message(message: Message, state: FSMContext):
         "✅ Ваше сообщение отправлено администратору!",
         reply_markup=get_main_keyboard()
     )
+
+@user_router.message(F.text == "⚙️ Настройки")
+@user_registered
+async def show_settings(message: Message):
+    """Показать настройки"""
+    user = await db_manager.get_user(message.from_user.id)
+    
+    notifications_status = "✅ Включены" if user.notifications_enabled else "❌ Выключены"
+    expire_status = "✅ Включены" if user.notify_on_expire else "❌ Выключены"
+    traffic_status = "✅ Включены" if user.notify_on_traffic else "❌ Выключены"
+    
+    text = (
+        f"⚙️ <b>Настройки</b>\n\n"
+        f"🔔 Уведомления: {notifications_status}\n"
+        f"⏰ Уведомления об истечении: {expire_status}\n"
+        f"📊 Уведомления о трафике: {traffic_status}\n\n"
+        f"Выберите настройку для изменения:"
+    )
+    
+    await message.answer(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
+
+@user_router.callback_query(F.data == "settings_back")
+@user_registered
+async def settings_back(callback: CallbackQuery):
+    """Вернуться из настроек"""
+    await callback.message.edit_text("⚙️ Настройки закрыты")
+    await callback.answer()
+
+@user_router.callback_query(F.data == "settings_notifications")
+@user_registered
+async def toggle_notifications(callback: CallbackQuery):
+    """Переключить уведомления"""
+    user = await db_manager.get_user(callback.from_user.id)
+    new_value = not user.notifications_enabled
+    await db_manager.update_user(callback.from_user.id, notifications_enabled=new_value)
+    
+    status = "включены" if new_value else "выключены"
+    await callback.answer(f"✅ Уведомления {status}")
+    
+    # Обновляем сообщение
+    user = await db_manager.get_user(callback.from_user.id)
+    notifications_status = "✅ Включены" if user.notifications_enabled else "❌ Выключены"
+    expire_status = "✅ Включены" if user.notify_on_expire else "❌ Выключены"
+    traffic_status = "✅ Включены" if user.notify_on_traffic else "❌ Выключены"
+    
+    text = (
+        f"⚙️ <b>Настройки</b>\n\n"
+        f"🔔 Уведомления: {notifications_status}\n"
+        f"⏰ Уведомления об истечении: {expire_status}\n"
+        f"📊 Уведомления о трафике: {traffic_status}\n\n"
+        f"Выберите настройку для изменения:"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
+
+@user_router.callback_query(F.data == "settings_expire")
+@user_registered
+async def toggle_expire_notifications(callback: CallbackQuery):
+    """Переключить уведомления об истечении"""
+    user = await db_manager.get_user(callback.from_user.id)
+    new_value = not user.notify_on_expire
+    await db_manager.update_user(callback.from_user.id, notify_on_expire=new_value)
+    
+    status = "включены" if new_value else "выключены"
+    await callback.answer(f"✅ Уведомления об истечении {status}")
+    
+    # Обновляем сообщение
+    user = await db_manager.get_user(callback.from_user.id)
+    notifications_status = "✅ Включены" if user.notifications_enabled else "❌ Выключены"
+    expire_status = "✅ Включены" if user.notify_on_expire else "❌ Выключены"
+    traffic_status = "✅ Включены" if user.notify_on_traffic else "❌ Выключены"
+    
+    text = (
+        f"⚙️ <b>Настройки</b>\n\n"
+        f"🔔 Уведомления: {notifications_status}\n"
+        f"⏰ Уведомления об истечении: {expire_status}\n"
+        f"📊 Уведомления о трафике: {traffic_status}\n\n"
+        f"Выберите настройку для изменения:"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
+
+@user_router.callback_query(F.data == "settings_traffic")
+@user_registered
+async def toggle_traffic_notifications(callback: CallbackQuery):
+    """Переключить уведомления о трафике"""
+    user = await db_manager.get_user(callback.from_user.id)
+    new_value = not user.notify_on_traffic
+    await db_manager.update_user(callback.from_user.id, notify_on_traffic=new_value)
+    
+    status = "включены" if new_value else "выключены"
+    await callback.answer(f"✅ Уведомления о трафике {status}")
+    
+    # Обновляем сообщение
+    user = await db_manager.get_user(callback.from_user.id)
+    notifications_status = "✅ Включены" if user.notifications_enabled else "❌ Выключены"
+    expire_status = "✅ Включены" if user.notify_on_expire else "❌ Выключены"
+    traffic_status = "✅ Включены" if user.notify_on_traffic else "❌ Выключены"
+    
+    text = (
+        f"⚙️ <b>Настройки</b>\n\n"
+        f"🔔 Уведомления: {notifications_status}\n"
+        f"⏰ Уведомления об истечении: {expire_status}\n"
+        f"📊 Уведомления о трафике: {traffic_status}\n\n"
+        f"Выберите настройку для изменения:"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
+
+@user_router.callback_query(F.data == "refresh_subscription")
+@user_registered
+async def refresh_subscription(callback: CallbackQuery):
+    """Обновить информацию о подписке"""
+    user = await db_manager.get_user(callback.from_user.id)
+    
+    if not user.marzban_username:
+        await callback.answer("❌ У вас нет активной подписки", show_alert=True)
+        return
+    
+    try:
+        usage = await marzban_api.get_user_usage(user.marzban_username)
+        
+        await db_manager.update_user(
+            user.telegram_id,
+            used_traffic=usage['used_traffic'],
+            is_active=(usage['status'] == 'active')
+        )
+        
+        await callback.answer("✅ Информация обновлена!")
+        
+        # Показываем обновленную информацию
+        status_emoji = "✅" if usage['status'] == 'active' else "❌"
+        used_traffic = format_bytes(usage['used_traffic'])
+        total_traffic = format_bytes(usage['data_limit'])
+        traffic_percent = get_traffic_percentage(usage['used_traffic'], usage['data_limit'])
+        
+        expire_date = datetime.fromtimestamp(usage['expire'])
+        days_left = calculate_expire_days(expire_date)
+        
+        text = (
+            f"📊 <b>Ваша подписка</b>\n\n"
+            f"Статус: {status_emoji} {usage['status']}\n"
+            f"Пользователь: <code>{user.marzban_username}</code>\n\n"
+            f"📈 Трафик: {used_traffic} / {total_traffic} ({traffic_percent:.1f}%)\n"
+            f"📅 Действует до: {format_date(expire_date)}\n"
+            f"⏳ Осталось дней: {days_left}\n"
+        )
+        
+        await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Failed to refresh subscription: {e}")
+        await callback.answer("❌ Не удалось обновить информацию", show_alert=True)
+
+@user_router.callback_query(F.data.startswith("buy_plan_"))
+@user_registered
+async def buy_plan(callback: CallbackQuery):
+    """Обработка покупки плана"""
+    plan_id = callback.data.split("_")[-1]
+    
+    if plan_id not in settings.SUBSCRIPTION_PLANS:
+        await callback.answer("❌ Неверный план", show_alert=True)
+        return
+    
+    plan = settings.SUBSCRIPTION_PLANS[plan_id]
+    
+    # TODO: Здесь должна быть интеграция с платежной системой
+    # Пока просто показываем информацию
+    text = (
+        f"💳 <b>План: {plan_id} месяц(а/ев)</b>\n\n"
+        f"📊 Трафик: {format_bytes(plan['data_limit'])}\n"
+        f"📅 Срок: {plan['days']} дней\n"
+        f"💰 Цена: {plan['price']}₽\n\n"
+        f"⚠️ Платежная система пока не настроена.\n"
+        f"Обратитесь к администратору для покупки подписки."
+    )
+    
+    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.answer()
+
+@user_router.callback_query(F.data == "plans_back")
+@user_registered
+async def plans_back(callback: CallbackQuery):
+    """Вернуться из планов"""
+    await callback.message.delete()
+    await callback.answer()
+
+@user_router.callback_query(F.data == "instructions")
+@user_registered
+async def show_instructions(callback: CallbackQuery):
+    """Показать инструкции по подключению"""
+    text = (
+        "📖 <b>Инструкции по подключению</b>\n\n"
+        "1. Скачайте VPN клиент:\n"
+        "   • Android: v2rayNG, Clash for Android\n"
+        "   • iOS: Shadowrocket, Clash\n"
+        "   • Windows: v2rayN, Clash for Windows\n"
+        "   • macOS: ClashX, v2rayU\n\n"
+        "2. Откройте приложение\n"
+        "3. Нажмите 'Добавить подписку' или 'Import from URL'\n"
+        "4. Вставьте ссылку подписки или отсканируйте QR код\n"
+        "5. Выберите сервер и подключитесь\n\n"
+        "💡 Если возникли проблемы, напишите администратору."
+    )
+    
+    await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
+
+@user_router.message(F.text == "🔄 Продлить подписку")
+@user_registered
+async def renew_subscription(message: Message):
+    """Продлить подписку"""
+    user = await db_manager.get_user(message.from_user.id)
+    
+    if not user.marzban_username:
+        await message.answer("❌ У вас нет активной подписки")
+        return
+    
+    text = (
+        "🔄 <b>Продление подписки</b>\n\n"
+        "Выберите срок продления:"
+    )
+    
+    await message.answer(text, reply_markup=get_plans_keyboard(), parse_mode="HTML")
+
+@user_router.message(F.text == "ℹ️ Помощь")
+@user_registered
+async def show_help(message: Message):
+    """Показать справку"""
+    text = (
+        "ℹ️ <b>Справка</b>\n\n"
+        "<b>Основные команды:</b>\n"
+        "/start - Начать работу с ботом\n"
+        "/admin - Панель администратора (только для админов)\n\n"
+        "<b>Меню:</b>\n"
+        "📊 Моя подписка - информация о вашей подписке\n"
+        "🔗 Подключение - получить ссылку и QR код\n"
+        "💳 Купить подписку - выбрать тарифный план\n"
+        "🔄 Продлить подписку - продлить текущую подписку\n"
+        "⚙️ Настройки - настройки уведомлений\n"
+        "💬 Написать админу - связаться с администратором\n\n"
+        "<b>Вопросы?</b>\n"
+        "Напишите администратору через меню '💬 Написать админу'"
+    )
+    
+    await message.answer(text, parse_mode="HTML")

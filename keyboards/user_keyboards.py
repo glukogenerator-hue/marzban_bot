@@ -36,13 +36,19 @@ def get_subscription_keyboard(has_trial: bool) -> InlineKeyboardMarkup:
 
 def get_plans_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура тарифных планов"""
-    keyboard = [
-        [InlineKeyboardButton(text="1 месяц - 300₽", callback_data="buy_plan_1")],
-        [InlineKeyboardButton(text="3 месяца - 750₽", callback_data="buy_plan_3")],
-        [InlineKeyboardButton(text="6 месяцев - 1000₽", callback_data="buy_plan_6")],
-        [InlineKeyboardButton(text="12 месяцев - 2000₽", callback_data="buy_plan_12")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="plans_back")]
-    ]
+    from config import settings
+    keyboard = []
+    
+    for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
+        months = plan['days'] // 30
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f"{months} месяц(а/ев) - {plan['price']}₽",
+                callback_data=f"buy_plan_{plan_id}"
+            )
+        ])
+    
+    keyboard.append([InlineKeyboardButton(text="◀️ Назад", callback_data="plans_back")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_connection_keyboard() -> InlineKeyboardMarkup:

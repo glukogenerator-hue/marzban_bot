@@ -38,7 +38,10 @@ async def main():
         # Запуск polling
         await dp.start_polling(bot)
     finally:
+        # Закрываем сессии
         await bot.session.close()
+        from marzban.api_client import marzban_api
+        await marzban_api.close()
         logger.info("Bot stopped")
 
 if __name__ == "__main__":

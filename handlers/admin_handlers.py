@@ -93,9 +93,17 @@ async def show_users(message: Message):
 async def manage_user(message: Message):
     """Управление пользователем"""
     try:
-        telegram_id = int(message.text.split()[1])
-    except (IndexError, ValueError):
-        await message.answer("❌ Использование: /user [telegram_id]")
+        parts = message.text.split()
+        if len(parts) < 2:
+            raise ValueError("Missing telegram_id")
+        telegram_id = int(parts[1])
+        
+        # Валидация ID
+        if telegram_id <= 0:
+            raise ValueError("Invalid telegram_id")
+    except (IndexError, ValueError) as e:
+        await message.answer("❌ Использование: /user [telegram_id]\nПример: /user 123456789")
+        logger.warning(f"Invalid user command: {message.text}, error: {e}")
         return
     
     user = await db_manager.get_user(telegram_id)
@@ -135,7 +143,11 @@ async def manage_user(message: Message):
 @admin_only
 async def delete_user_callback(callback: CallbackQuery):
     """Удалить пользователя"""
-    telegram_id = int(callback.data.split("_")[2])
+    try:
+        telegram_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID пользователя", show_alert=True)
+        return
     user = await db_manager.get_user(telegram_id)
     
     if not user:
@@ -161,7 +173,11 @@ async def delete_user_callback(callback: CallbackQuery):
 @admin_only
 async def suspend_user_callback(callback: CallbackQuery):
     """Приостановить пользователя"""
-    telegram_id = int(callback.data.split("_")[2])
+    try:
+        telegram_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID пользователя", show_alert=True)
+        return
     user = await db_manager.get_user(telegram_id)
     
     if not user or not user.marzban_username:
@@ -185,7 +201,11 @@ async def suspend_user_callback(callback: CallbackQuery):
 @admin_only
 async def activate_user_callback(callback: CallbackQuery):
     """Активировать пользователя"""
-    telegram_id = int(callback.data.split("_")[2])
+    try:
+        telegram_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID пользователя", show_alert=True)
+        return
     user = await db_manager.get_user(telegram_id)
     
     if not user or not user.marzban_username:
@@ -241,7 +261,11 @@ async def process_broadcast_message(message: Message, state: FSMContext):
 @admin_only
 async def process_broadcast(callback: CallbackQuery, state: FSMContext):
     """Обработка рассылки"""
-    action = callback.data.split("_")[1]
+    try:
+        action = callback.data.split("_")[1]
+    except IndexError:
+        await callback.answer("❌ Ошибка обработки команды", show_alert=True)
+        return
     
     if action == "cancel":
         await state.clear()
@@ -334,11 +358,22 @@ async def user_mode(message: Message):
 async def show_logs(message: Message):
     """Показать последние логи"""
     try:
-        with open(settings.LOG_FILE, 'r', encoding='utf-8') as f:
+        from pathlib import Path
+        log_path = Path(settings.LOG_FILE)
+        
+        if not log_path.exists():
+            await message.answer("❌ Файл логов не найден")
+            return
+        
+        with open(log_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
             last_lines = lines[-20:] if len(lines) > 20 else lines
             
         log_text = ''.join(last_lines)
+        
+        # Telegram имеет лимит на длину сообщения (4096 символов)
+        if len(log_text) > 4000:
+            log_text = log_text[-4000:]
         
         await message.answer(
             f"📋 <b>Последние записи лога:</b>\n\n"
@@ -348,3 +383,57 @@ async def show_logs(message: Message):
     except Exception as e:
         logger.error(f"Failed to read logs: {e}")
         await message.answer("❌ Не удалось прочитать логи")
+
+@admin_router.message(F.text == "⚙️ Управление")
+@admin_only
+async def show_management(message: Message):
+    """Показать меню управления"""
+    text = (
+        "⚙️ <b>Управление ботом</b>\n\n"
+        "Доступные функции:\n"
+        "• 📊 Статистика - просмотр статистики\n"
+        "• 👥 Пользователи - управление пользователями\n"
+        "• 📨 Рассылка - отправка сообщений\n"
+        "• 💬 Сообщения - просмотр сообщений от пользователей\n"
+        "• 📋 Логи - просмотр логов бота\n\n"
+        "Используйте команду /user [telegram_id] для управления конкретным пользователем"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@admin_router.callback_query(F.data.startswith("admin_edit_"))
+@admin_only
+async def edit_user_subscription(callback: CallbackQuery):
+    """Редактировать подписку пользователя"""
+    try:
+        telegram_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID пользователя", show_alert=True)
+        return
+    
+    user = await db_manager.get_user(telegram_id)
+    
+    if not user or not user.marzban_username:
+        await callback.answer("❌ Пользователь не найден или не имеет подписки", show_alert=True)
+        return
+    
+    text = (
+        f"✏️ <b>Редактирование подписки</b>\n\n"
+        f"Пользователь: {user.first_name} (@{user.username or 'нет'})\n"
+        f"Marzban: <code>{user.marzban_username}</code>\n\n"
+        f"Текущие параметры:\n"
+        f"• Трафик: {format_bytes(user.data_limit or 0)}\n"
+        f"• Истекает: {format_date(user.expire_date)}\n"
+        f"• Статус: {'✅ Активна' if user.is_active else '❌ Неактивна'}\n\n"
+        f"⚠️ Функция редактирования подписки в разработке.\n"
+        f"Используйте API Marzban для ручного редактирования."
+    )
+    
+    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.answer()
+
+@admin_router.callback_query(F.data == "admin_back")
+@admin_only
+async def admin_back(callback: CallbackQuery):
+    """Вернуться в админ панель"""
+    await callback.message.delete()
+    await callback.answer()

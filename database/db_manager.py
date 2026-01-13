@@ -19,9 +19,14 @@ class DatabaseManager:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database initialized")
     
-    async def get_session(self) -> AsyncSession:
+    async def get_session(self):
+        """Получить сессию (generator для dependency injection)"""
         async with self.async_session() as session:
             yield session
+    
+    async def close(self):
+        """Закрыть соединение с БД"""
+        await self.engine.dispose()
     
     # ========== User operations ==========
     
