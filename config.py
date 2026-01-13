@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./bot.db"
     
     # Trial settings
-    TRIAL_DATA_LIMIT: int = 5368709120  # 5 GB
+    TRIAL_DATA_LIMIT: int = 10737418240  # 10 GB
     TRIAL_EXPIRE_DAYS: int = 3
     
     # Subscription plans (days, data_limit in bytes, price in rubles)

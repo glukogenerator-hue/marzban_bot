@@ -37,3 +37,19 @@ def get_message_keyboard(user_telegram_id: int, message_id: int) -> InlineKeyboa
         [InlineKeyboardButton(text="✅ Прочитано", callback_data=f"mark_read_{message_id}")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_users_list_keyboard(users_buttons: list, has_more: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура списка пользователей"""
+    keyboard = users_buttons.copy()
+    
+    # Добавляем кнопки навигации
+    if has_more:
+        keyboard.append([
+            InlineKeyboardButton(text="🔄 Обновить список", callback_data="admin_users_refresh")
+        ])
+    
+    keyboard.append([
+        InlineKeyboardButton(text="🔍 Поиск по ID", callback_data="admin_search_user")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)

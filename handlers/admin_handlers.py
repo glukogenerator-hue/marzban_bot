@@ -18,6 +18,7 @@ class AdminStates(StatesGroup):
     waiting_for_broadcast = State()
     waiting_for_user_search = State()
     waiting_for_reply = State()
+    waiting_for_user_id_search = State()
 
 @admin_router.message(Command("admin"))
 @admin_only
@@ -61,56 +62,59 @@ async def show_statistics(message: Message):
 @admin_router.message(F.text == "👥 Пользователи")
 @admin_only
 async def show_users(message: Message):
-    """Показать список пользователей"""
+    """Показать список пользователей с кнопками"""
+    from keyboards.admin_keyboards import get_users_list_keyboard
+    
     users = await db_manager.get_all_users()
     
     if not users:
         await message.answer("❌ Пользователей не найдено")
         return
     
-    # Показываем первых 10 пользователей
-    text = "👥 <b>Список пользователей</b>\n\n"
+    # Показываем первых 10 пользователей с кнопками
+    text = f"👥 <b>Список пользователей</b> (всего: {len(users)})\n\n"
+    text += "Выберите пользователя для управления:\n\n"
     
+    keyboard_users = []
     for i, user in enumerate(users[:10], 1):
         status = "✅" if user.is_active else "❌"
-        username = f"@{user.username}" if user.username else "Без username"
+        username = f"@{user.username}" if user.username else "без username"
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "Без имени"
+        
         text += (
-            f"{i}. {status} {user.first_name} {username}\n"
-            f"   ID: <code>{user.telegram_id}</code>\n"
+            f"{i}. {status} {full_name} {username}\n"
+            f"   ID: <code>{user.telegram_id}</code>\n\n"
         )
-        if user.marzban_username:
-            text += f"   Marzban: <code>{user.marzban_username}</code>\n"
-        text += "\n"
+        
+        # Добавляем кнопку для каждого пользователя
+        button_text = f"{status} {full_name[:20]}"
+        keyboard_users.append([
+            InlineKeyboardButton(
+                text=button_text,
+                callback_data=f"admin_user_{user.telegram_id}"
+            )
+        ])
     
     if len(users) > 10:
-        text += f"\n...и еще {len(users) - 10} пользователей"
+        text += f"\n...и еще {len(users) - 10} пользователей\n"
+        text += "💡 Используйте /user [telegram_id] для управления остальными пользователями"
     
-    text += "\n💡 Используйте /user [telegram_id] для управления пользователем"
-    
-    await message.answer(text, parse_mode="HTML")
+    await message.answer(
+        text,
+        reply_markup=get_users_list_keyboard(keyboard_users, len(users) > 10),
+        parse_mode="HTML"
+    )
 
-@admin_router.message(Command("user"))
-@admin_only
-async def manage_user(message: Message):
-    """Управление пользователем"""
-    try:
-        parts = message.text.split()
-        if len(parts) < 2:
-            raise ValueError("Missing telegram_id")
-        telegram_id = int(parts[1])
-        
-        # Валидация ID
-        if telegram_id <= 0:
-            raise ValueError("Invalid telegram_id")
-    except (IndexError, ValueError) as e:
-        await message.answer("❌ Использование: /user [telegram_id]\nПример: /user 123456789")
-        logger.warning(f"Invalid user command: {message.text}, error: {e}")
-        return
-    
+async def show_user_info(telegram_id: int, message: Message = None, callback: CallbackQuery = None):
+    """Показать информацию о пользователе (вспомогательная функция)"""
     user = await db_manager.get_user(telegram_id)
     
     if not user:
-        await message.answer(f"❌ Пользователь с ID {telegram_id} не найден")
+        error_text = f"❌ Пользователь с ID {telegram_id} не найден"
+        if callback:
+            await callback.answer(error_text, show_alert=True)
+        elif message:
+            await message.answer(error_text)
         return
     
     status = "✅ Активна" if user.is_active else "❌ Неактивна"
@@ -128,17 +132,105 @@ async def manage_user(message: Message):
     if user.marzban_username:
         text += (
             f"\nMarzban: <code>{user.marzban_username}</code>\n"
-            f"Трафик: {format_bytes(user.used_traffic or 0)} / {format_bytes(user.data_limit or 0)}\n"
+            f"Трафик: {format_bytes(user.used_traffic or 0)} / {format_bytes(user.data_limit or 0) if user.data_limit else '♾️ Безлимит'}\n"
             f"Истекает: {format_date(user.expire_date)}\n"
         )
     
     text += f"\nЗарегистрирован: {format_date(user.created_at)}"
     
-    await message.answer(
-        text,
-        reply_markup=get_user_management_keyboard(telegram_id),
+    if callback:
+        await callback.message.edit_text(
+            text,
+            reply_markup=get_user_management_keyboard(telegram_id),
+            parse_mode="HTML"
+        )
+        await callback.answer()
+    elif message:
+        await message.answer(
+            text,
+            reply_markup=get_user_management_keyboard(telegram_id),
+            parse_mode="HTML"
+        )
+
+@admin_router.callback_query(F.data.startswith("admin_user_"))
+@admin_only
+async def manage_user_callback(callback: CallbackQuery):
+    """Управление пользователем через кнопку"""
+    try:
+        telegram_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Ошибка получения ID пользователя", show_alert=True)
+        return
+    
+    await show_user_info(telegram_id, callback=callback)
+
+@admin_router.callback_query(F.data == "admin_users_refresh")
+@admin_only
+async def refresh_users_list(callback: CallbackQuery):
+    """Обновить список пользователей"""
+    await callback.answer("🔄 Обновление списка...")
+    # Вызываем обработчик показа пользователей
+    await show_users(callback.message)
+    await callback.message.delete()
+
+@admin_router.callback_query(F.data == "admin_search_user")
+@admin_only
+async def search_user_by_id(callback: CallbackQuery, state: FSMContext):
+    """Поиск пользователя по ID"""
+    await state.set_state(AdminStates.waiting_for_user_id_search)
+    await callback.message.answer(
+        "🔍 <b>Поиск пользователя</b>\n\n"
+        "Введите Telegram ID пользователя:\n"
+        "(Для отмены используйте /cancel)",
         parse_mode="HTML"
     )
+    await callback.answer()
+
+@admin_router.message(AdminStates.waiting_for_user_id_search)
+@admin_only
+async def process_user_id_search(message: Message, state: FSMContext):
+    """Обработка поиска пользователя по ID"""
+    if message.text == "/cancel":
+        await state.clear()
+        from keyboards.admin_keyboards import get_admin_keyboard
+        await message.answer("❌ Поиск отменен", reply_markup=get_admin_keyboard())
+        return
+    
+    try:
+        telegram_id = int(message.text.strip())
+        
+        if telegram_id <= 0:
+            raise ValueError("Invalid ID")
+        
+        await state.clear()
+        await show_user_info(telegram_id, message=message)
+        
+    except (ValueError, TypeError):
+        await message.answer(
+            "❌ Неверный формат ID. Введите число.\n"
+            "Пример: 123456789\n\n"
+            "Для отмены используйте /cancel"
+        )
+
+@admin_router.message(Command("user"))
+@admin_only
+async def manage_user(message: Message):
+    """Управление пользователем через команду"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            raise ValueError("Missing telegram_id")
+        telegram_id = int(parts[1])
+        
+        # Валидация ID
+        if telegram_id <= 0:
+            raise ValueError("Invalid telegram_id")
+    except (IndexError, ValueError) as e:
+        await message.answer("❌ Использование: /user [telegram_id]\nПример: /user 123456789")
+        logger.warning(f"Invalid user command: {message.text}, error: {e}")
+        return
+    
+    await show_user_info(telegram_id, message=message)
 
 @admin_router.callback_query(F.data.startswith("admin_delete_"))
 @admin_only
