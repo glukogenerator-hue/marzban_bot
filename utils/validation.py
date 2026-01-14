@@ -3,7 +3,7 @@
 """
 from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
-from types.schemas import ErrorResponseSchema, ValidationErrorResponseSchema
+from schemas.schemas import ErrorResponseSchema, ValidationErrorResponseSchema
 from utils.logger import logger
 
 
@@ -108,7 +108,7 @@ class DataValidator:
 # Предопределенные валидаторы
 def validate_user_input(data: dict) -> tuple[bool, Optional[dict], Optional[ValidationErrorResponseSchema]]:
     """Валидация входных данных пользователя"""
-    from types.schemas import UserCreateSchema
+    from schemas.schemas import UserCreateSchema
     
     is_valid, model, error = DataValidator.validate(UserCreateSchema, data)
     if is_valid:
@@ -118,7 +118,7 @@ def validate_user_input(data: dict) -> tuple[bool, Optional[dict], Optional[Vali
 
 def validate_subscription_input(data: dict) -> tuple[bool, Optional[dict], Optional[ValidationErrorResponseSchema]]:
     """Валидация данных подписки"""
-    from types.schemas import SubscriptionCreateSchema
+    from schemas.schemas import SubscriptionCreateSchema
     
     is_valid, model, error = DataValidator.validate(SubscriptionCreateSchema, data)
     if is_valid:
@@ -128,7 +128,7 @@ def validate_subscription_input(data: dict) -> tuple[bool, Optional[dict], Optio
 
 def validate_message_input(data: dict) -> tuple[bool, Optional[dict], Optional[ValidationErrorResponseSchema]]:
     """Валидация сообщения"""
-    from types.schemas import MessageCreateSchema
+    from schemas.schemas import MessageCreateSchema
     
     is_valid, model, error = DataValidator.validate(MessageCreateSchema, data)
     if is_valid:

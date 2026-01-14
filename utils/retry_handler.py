@@ -37,7 +37,7 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_failure_time: Optional[datetime] = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
-        
+    
     def record_failure(self):
         """Записать неудачный вызов"""
         self.failure_count += 1

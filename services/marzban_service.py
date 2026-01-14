@@ -4,7 +4,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from marzban.api_client import marzban_api
-from types.schemas import MarzbanUserCreateSchema, MarzbanUserUpdateSchema, MarzbanUserResponseSchema
+from schemas.schemas import MarzbanUserCreateSchema, MarzbanUserUpdateSchema, MarzbanUserResponseSchema
 from utils.retry_handler import retry, RETRY_CONFIGS
 from utils.logger import logger
 

@@ -2,9 +2,9 @@
 Централизованная обработка ошибок
 """
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from aiogram.types import Message, CallbackQuery
-from types.schemas import ErrorResponseSchema
+from schemas.schemas import ErrorResponseSchema
 from utils.logger import logger
 
 

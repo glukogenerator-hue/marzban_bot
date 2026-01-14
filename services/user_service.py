@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from database.db_manager import db_manager
 from marzban.api_client import marzban_api
-from types.schemas import (
+from schemas.schemas import (
     UserCreateSchema, 
     UserUpdateSchema, 
     SubscriptionCreateSchema,
