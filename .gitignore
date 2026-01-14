@@ -22,3 +22,4 @@ dist/
 .ipynb_checkpoints
 
 bot.db
+bot.log

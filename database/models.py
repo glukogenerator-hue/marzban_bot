@@ -59,12 +59,19 @@ class Transaction(AsyncAttrs, Base):
     description = Column(String(255), nullable=True)
     status = Column(String(20), default="pending", index=True)  # pending, completed, failed
     
+    # Поля для платежных систем
+    order_id = Column(String(100), nullable=True, index=True)
+    payment_provider = Column(String(50), nullable=True)  # yookassa, cryptobot
+    payment_invoice_id = Column(String(100), nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Индексы для аналитики
     __table_args__ = (
         Index('idx_transaction_status_date', 'status', 'created_at'),
         Index('idx_transaction_user_amount', 'user_id', 'amount'),
+        Index('idx_transaction_order', 'order_id', unique=True),
     )
     
     def __repr__(self):

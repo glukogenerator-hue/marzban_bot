@@ -123,6 +123,25 @@ class DatabaseManager:
             await session.refresh(transaction)
             return transaction
     
+    async def update_transaction(self, transaction_id: int, **kwargs) -> bool:
+        """Обновить транзакцию"""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(Transaction)
+                .where(Transaction.id == transaction_id)
+                .values(**kwargs, updated_at=datetime.utcnow())
+            )
+            await session.commit()
+            return result.rowcount > 0
+    
+    async def get_transaction_by_order_id(self, order_id: str) -> Optional[Transaction]:
+        """Получить транзакцию по order_id"""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(Transaction).where(Transaction.order_id == order_id)
+            )
+            return result.scalar_one_or_none()
+    
     # ========== Message operations ==========
     
     async def create_message(self, from_telegram_id: int, message_text: str,
