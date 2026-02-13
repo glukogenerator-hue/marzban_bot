@@ -49,9 +49,17 @@ class UserService:
         logger.info(f"Created new user: {user_data.telegram_id}")
         return UserResponseSchema.from_orm(user)
     
-    async def update_user(self, telegram_id: int, update_data: UserUpdateSchema) -> bool:
+    async def update_user(self, telegram_id: int, update_data) -> bool:
         """Обновить данные пользователя"""
-        update_dict = update_data.dict(exclude_unset=True)
+        from typing import Union, Dict, Any
+        
+        # Преобразуем update_data в словарь
+        if isinstance(update_data, dict):
+            update_dict = update_data
+        else:
+            # Предполагаем, что это UserUpdateSchema
+            update_dict = update_data.dict(exclude_unset=True)
+        
         if not update_dict:
             raise ValueError("No data to update")
         

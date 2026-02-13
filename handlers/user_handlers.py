@@ -60,7 +60,7 @@ async def show_subscription(message: Message):
             "🎁 Получить тестовый доступ на 3 дня\n"
             "💳 Купить полную подписку"
         )
-        await message.answer(text, reply_markup=get_subscription_keyboard(user.trial_used))
+        await message.answer(text, reply_markup=get_subscription_keyboard(user.trial_used, has_active_subscription=False))
         return
     
     # Получаем актуальную информацию из Marzban
@@ -98,7 +98,7 @@ async def show_subscription(message: Message):
         logger.error(f"Failed to get user usage: {e}")
         text = "❌ Не удалось получить информацию о подписке. Попробуйте позже."
     
-    await message.answer(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
+    await message.answer(text, reply_markup=get_subscription_keyboard(user.trial_used, has_active_subscription=True), parse_mode="HTML")
 
 @user_router.callback_query(F.data == "get_trial")
 @user_registered
@@ -425,13 +425,12 @@ async def refresh_subscription(callback: CallbackQuery):
             f"📊 <b>Ваша подписка</b>\n\n"
             f"Статус: {status_emoji} {usage['status']}\n"
             f"Пользователь: <code>{user.marzban_username}</code>\n\n"
-            f"📈 Трафик: {used_traffic} / {total_traffic} ({traffic_percent:.1f}%)\n"
             f"📅 Действует до: {format_date(expire_date)}\n"
             f"⏳ Осталось дней: {days_left}\n"
         )
         
         try:
-            await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used), parse_mode="HTML")
+            await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used, has_active_subscription=True), parse_mode="HTML")
         except Exception as edit_error:
             # Если сообщение не изменилось, это не критичная ошибка
             error_msg = str(edit_error).lower()
@@ -446,6 +445,78 @@ async def refresh_subscription(callback: CallbackQuery):
         logger.error(f"Failed to refresh subscription: {e}")
         await callback.answer("❌ Не удалось обновить информацию", show_alert=True)
 
+@user_router.callback_query(F.data == "connection_settings")
+@user_registered
+async def show_connection_settings(callback: CallbackQuery):
+    """Показать настройки подключения"""
+    user = await db_manager.get_user(callback.from_user.id)
+    
+    if not user.subscription_url:
+        await callback.answer("❌ У вас нет активной подписки", show_alert=True)
+        return
+    
+    text = (
+        f"🔗 <b>Подключение к VPN</b>\n\n"
+        f"Ваша ссылка подписки:\n"
+        f"<code>{user.subscription_url}</code>\n\n"
+        f"Выберите действие:"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=get_connection_keyboard(), parse_mode="HTML")
+    await callback.answer()
+
+@user_router.callback_query(F.data == "go_to_subscription")
+@user_registered
+async def go_to_subscription(callback: CallbackQuery):
+    """Перейти к подписке после успешного платежа"""
+    user = await db_manager.get_user(callback.from_user.id)
+    
+    if not user.marzban_username:
+        text = (
+            "❌ У вас еще нет активной подписки.\n\n"
+            "Вы можете:\n"
+            "🎁 Получить тестовый доступ на 3 дня\n"
+            "💳 Купить полную подписку"
+        )
+        await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used, has_active_subscription=False))
+    else:
+        # Получаем актуальную информацию из Marzban
+        try:
+            usage = await marzban_api.get_user_usage(user.marzban_username)
+            
+            await db_manager.update_user(
+                user.telegram_id,
+                used_traffic=usage['used_traffic'],
+                is_active=(usage['status'] == 'active')
+            )
+            
+            status_emoji = "✅" if usage['status'] == 'active' else "❌"
+            used_traffic = format_bytes(usage['used_traffic'])
+            total_traffic = format_bytes(usage['data_limit'])
+            traffic_percent = get_traffic_percentage(usage['used_traffic'], usage['data_limit'])
+            
+            expire_date = datetime.fromtimestamp(usage['expire'])
+            days_left = calculate_expire_days(expire_date)
+            
+            text = (
+                f"📊 <b>Ваша подписка</b>\n\n"
+                f"Статус: {status_emoji} {usage['status']}\n"
+                f"Пользователь: <code>{user.marzban_username}</code>\n\n"
+                f"📅 Действует до: {format_date(expire_date)}\n"
+                f"⏳ Осталось дней: {days_left}\n"
+            )
+            
+            if user.trial_used and days_left <= 3:
+                text += "\n⚠️ Подписка скоро истечет! Рекомендуем продлить."
+                
+        except Exception as e:
+            logger.error(f"Failed to get user usage: {e}")
+            text = "❌ Не удалось получить информацию о подписке. Попробуйте позже."
+        
+        await callback.message.edit_text(text, reply_markup=get_subscription_keyboard(user.trial_used, has_active_subscription=True), parse_mode="HTML")
+    
+    await callback.answer()
+
 @user_router.callback_query(F.data.startswith("buy_plan_"))
 @user_registered
 async def buy_plan(callback: CallbackQuery):
@@ -458,18 +529,65 @@ async def buy_plan(callback: CallbackQuery):
     
     plan = settings.SUBSCRIPTION_PLANS[plan_id]
     
-    # TODO: Здесь должна быть интеграция с платежной системой
-    # Пока просто показываем информацию
-    text = (
-        f"💳 <b>План: {plan_id} месяц(а/ев)</b>\n\n"
-        f"📅 Срок: {plan['days']} дней\n"
-        f"💰 Цена: {plan['price']}₽\n"
-        f"♾️ Безлимитный трафик\n\n"
-        f"⚠️ Платежная система пока не настроена.\n"
-        f"Обратитесь к администратору для покупки подписки."
-    )
+    # Проверяем, включена ли платежная система
+    if not settings.TELEGRAM_STARS_ENABLED:
+        # Платежная система отключена
+        text = (
+            f"💳 <b>План: {plan_id} месяц(а/ев)</b>\n\n"
+            f"📅 Срок: {plan['days']} дней\n"
+            f"💰 Цена: {plan['price']}₽\n"
+            f"♾️ Безлимитный трафик\n\n"
+            f"⚠️ Платежная система пока не настроена.\n"
+            f"Обратитесь к администратору для покупки подписки."
+        )
+        keyboard = None
+    else:
+        # Платежная система включена - показываем информацию об оплате
+        # Для тестирования всегда 1 звезда
+        stars_amount = 1
+        
+        text = (
+            f"💳 <b>План: {plan_id} месяц(а/ев)</b>\n\n"
+            f"📅 Срок: {plan['days']} дней\n"
+            f"💰 Цена: {plan['price']}₽ ({stars_amount} ⭐️)\n"
+            f"♾️ Безлимитный трафик\n\n"
+            f"💡 <i>Оплата производится только Telegram Stars</i>\n\n"
+            f"Нажмите кнопку ниже, чтобы начать оплату."
+        )
+        
+        # Создаем клавиатуру с кнопкой для оплаты
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=f"💳 Оплатить {plan['price']}₽",
+                        callback_data=f"start_payment_{plan_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🔙 Назад к планам",
+                        callback_data="show_plans"
+                    )
+                ]
+            ]
+        )
     
-    await callback.message.edit_text(text, parse_mode="HTML")
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
+    await callback.answer()
+
+@user_router.callback_query(F.data == "show_plans")
+@user_registered
+async def show_plans_callback(callback: CallbackQuery):
+    """Показать список планов"""
+    text = (
+        "💳 <b>Тарифные планы</b>\n\n"
+        "Выберите подходящий тариф:\n\n"
+        "⚠️ <i>В настоящее время доступна только оплата Telegram Stars</i>"
+    )
+    from keyboards.user_keyboards import get_plans_keyboard
+    await callback.message.edit_text(text, reply_markup=get_plans_keyboard(), parse_mode="HTML")
     await callback.answer()
 
 @user_router.callback_query(F.data == "plans_back")
@@ -485,16 +603,31 @@ async def show_instructions(callback: CallbackQuery):
     """Показать инструкции по подключению"""
     text = (
         "📖 <b>Инструкции по подключению</b>\n\n"
-        "1. Скачайте VPN клиент:\n"
-        "   • Android: v2rayNG, Clash for Android\n"
-        "   • iOS: Shadowrocket, Clash\n"
-        "   • Windows: v2rayN, Clash for Windows\n"
-        "   • macOS: ClashX, v2rayU\n\n"
-        "2. Откройте приложение\n"
-        "3. Нажмите 'Добавить подписку' или 'Import from URL'\n"
-        "4. Вставьте ссылку подписки или отсканируйте QR код\n"
-        "5. Выберите сервер и подключитесь\n\n"
-        "💡 Если возникли проблемы, напишите администратору."
+        "<b>1. Скачайте VPN клиент:</b>\n"
+        "• <b>Android:</b> v2rayNG (https://github.com/2dust/v2rayNG), Clash for Android (https://github.com/Kr328/ClashForAndroid)\n"
+        "• <b>iOS:</b> Shadowrocket (App Store), Clash (TestFlight)\n"
+        "• <b>Windows:</b> v2rayN (https://github.com/2dust/v2rayN), Clash for Windows (https://github.com/Fndroid/clash_for_windows_pkg)\n"
+        "• <b>macOS:</b> ClashX (https://github.com/yichengchen/clashX), v2rayU (https://github.com/yanue/V2rayU)\n"
+        "• <b>Linux:</b> Qv2ray (https://github.com/Qv2ray/Qv2ray), Clash (https://github.com/Dreamacro/clash)\n\n"
+        "<b>2. Установите и откройте приложение</b>\n\n"
+        "<b>3. Добавьте подписку:</b>\n"
+        "   • Найдите кнопку 'Добавить подписку', 'Import from URL' или аналогичную\n"
+        "   • Вставьте ссылку подписки (можно получить в разделе 'Моя подписка' → 'Настройка подключения')\n"
+        "   • Или отсканируйте QR код (также доступен в настройках подключения)\n\n"
+        "<b>4. Активируйте подключение:</b>\n"
+        "   • Выберите добавленный сервер в списке\n"
+        "   • Включите VPN (переключите тумблер)\n"
+        "   • Дождитесь установки соединения\n\n"
+        "<b>🔧 Устранение неполадок:</b>\n"
+        "• <b>Нет подключения:</b> Проверьте интернет, перезапустите VPN клиент, обновите подписку\n"
+        "• <b>Подписка не работает:</b> Убедитесь, что подписка активна и не истекла\n"
+        "• <b>Медленная скорость:</b> Попробуйте другой сервер (если доступно) или переключите протокол\n"
+        "• <b>Ошибка импорта:</b> Скопируйте ссылку заново, проверьте её корректность\n\n"
+        "<b>💡 Полезное:</b>\n"
+        "• Регулярно обновляйте VPN клиент для лучшей совместимости\n"
+        "• Используйте QR код для быстрого подключения на мобильных устройствах\n"
+        "• Настройте уведомления об истечении подписки в меню '⚙️ Настройки'\n\n"
+        "Если проблемы остаются, напишите администратору через меню '💬 Написать админу'."
     )
     
     await callback.message.answer(text, parse_mode="HTML")
@@ -532,12 +665,33 @@ async def show_help(message: Message):
         "/start - Начать работу с ботом\n"
         "/admin - Панель администратора (только для админов)\n\n"
         "<b>Меню:</b>\n"
-        "📊 Моя подписка - информация о вашей подписке\n"
-        "🔗 Подключение - получить ссылку и QR код\n"
+        "📊 Моя подписка - информация о вашей подписке (включая настройку подключения)\n"
         "💳 Купить подписку - выбрать тарифный план\n"
         "🔄 Продлить подписку - продлить текущую подписку\n"
         "⚙️ Настройки - настройки уведомлений\n"
         "💬 Написать админу - связаться с администратором\n\n"
+        "<b>📱 Рекомендуемые VPN клиенты:</b>\n"
+        "• <b>Android:</b> v2rayNG, Clash for Android\n"
+        "• <b>iOS:</b> Shadowrocket, Clash\n"
+        "• <b>Windows:</b> v2rayN, Clash for Windows\n"
+        "• <b>macOS:</b> ClashX, v2rayU\n"
+        "• <b>Linux:</b> Qv2ray, Clash\n\n"
+        "<b>💡 Полезные советы:</b>\n"
+        "1. Для подключения используйте ссылку подписки или QR код из раздела 'Моя подписка' → 'Настройка подключения'.\n"
+        "2. Уведомления о трафике и истечении подписки можно настроить в меню '⚙️ Настройки'.\n"
+        "3. При проблемах с подключением перезапустите VPN клиент и обновите подписку.\n"
+        "4. Тестовый доступ предоставляется на 3 дня с ограниченным трафиком.\n"
+        "5. Для экономии трафика отключайте VPN при загрузке больших файлов или просмотре локального контента.\n"
+        "6. Используйте режим 'Split Tunneling' (если поддерживается клиентом) для выбора приложений, работающих через VPN.\n"
+        "7. Регулярно проверяйте обновления VPN клиента для улучшения безопасности и скорости.\n"
+        "8. При блокировке VPN попробуйте сменить протокол подключения в настройках клиента.\n\n"
+        "<b>📊 Проверка скорости:</b>\n"
+        "• Используйте speedtest.net или fast.com для проверки скорости соединения\n"
+        "• Помните, что скорость зависит от многих факторов: загрузка сервера, ваше интернет-соединение, расстояние до сервера\n\n"
+        "<b>🔒 Безопасность:</b>\n"
+        "• Не передавайте свою ссылку подписки третьим лицам\n"
+        "• Регулярно обновляйте пароли и используйте двухфакторную аутентификацию где возможно\n"
+        "• При использовании публичных Wi-Fi всегда включайте VPN\n\n"
         "<b>Вопросы?</b>\n"
         "Напишите администратору через меню '💬 Написать админу'"
     )

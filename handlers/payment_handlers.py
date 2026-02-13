@@ -33,9 +33,8 @@ def rub_to_stars(rub_amount: float) -> int:
     Returns:
         int: Количество звезд
     """
-    # 1 звезда ≈ 7 RUB (курс может меняться)
-    stars = int(rub_amount / 7)
-    return max(stars, 1)  # Минимум 1 звезда
+    # Для тестирования всегда возвращаем 1 звезду
+    return 1
 
 
 def get_plan_by_amount(amount: float) -> dict:
@@ -123,9 +122,6 @@ async def process_amount(message: Message, state: FSMContext):
             user_id=user.id,
             telegram_id=message.from_user.id,
             amount=amount,
-            currency="XTR",
-            provider="telegram_stars",
-            status="pending",
             description=f"Подписка VPN на {plan['days']} дней"
         )
         
@@ -199,11 +195,10 @@ async def success_payment_handler(message: Message, state: FSMContext):
             return
         
         # Обновляем транзакцию в базе данных
-        transaction_updated = await db_manager.update_transaction(
+        transaction_updated = await db_manager.update_transaction_by_order_id(
             order_id=order_id,
             status="completed",
-            payment_id=payment_info.telegram_payment_charge_id,
-            payment_info=str(payment_info.model_dump())
+            payment_invoice_id=payment_info.telegram_payment_charge_id
         )
         
         if not transaction_updated:
@@ -220,11 +215,22 @@ async def success_payment_handler(message: Message, state: FSMContext):
             )
             
             if success:
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="📊 Перейти к подписке",
+                                callback_data="go_to_subscription"
+                            )
+                        ]
+                    ]
+                )
                 await message.answer(
                     "✅ <b>Платеж успешно завершен!</b>\n\n"
-                    f"Ваша подписка активирована на {state_data.get('days', 30)} дней.\n"
-                    "Используйте команду /start для просмотра статуса подписки.",
-                    parse_mode="HTML"
+                    f"Ваша подписка активирована на {state_data.get('days', 30)} дней.",
+                    parse_mode="HTML",
+                    reply_markup=keyboard
                 )
             else:
                 await message.answer(
@@ -390,3 +396,75 @@ async def renew_subscription_payment(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error starting renewal: {e}")
         await message.answer("❌ Не удалось начать процесс продления")
+
+
+@payment_router.callback_query(F.data.startswith("start_payment_"))
+async def start_payment_from_callback(callback: CallbackQuery, state: FSMContext):
+    """Начать процесс оплаты из callback (при выборе плана)"""
+    try:
+        plan_id = callback.data.replace("start_payment_", "")
+        
+        if plan_id not in settings.SUBSCRIPTION_PLANS:
+            await callback.answer("❌ Неверный план", show_alert=True)
+            return
+        
+        plan = settings.SUBSCRIPTION_PLANS[plan_id]
+        amount = plan["price"]
+        
+        # Проверяем, включены ли Telegram Stars
+        if not settings.TELEGRAM_STARS_ENABLED:
+            await callback.answer("❌ Платежная система временно недоступна", show_alert=True)
+            return
+        
+        # Проверяем регистрацию пользователя
+        user = await user_service.get_user(callback.from_user.id)
+        if not user:
+            await callback.answer("❌ Вы не зарегистрированы. Используйте /start", show_alert=True)
+            return
+        
+        # Сохраняем данные в состоянии
+        await state.update_data(
+            amount=amount,
+            stars_amount=rub_to_stars(amount),
+            plan_id=plan_id,
+            days=plan["days"]
+        )
+        
+        # Создаем транзакцию в базе данных
+        transaction = await db_manager.create_transaction(
+            user_id=user.id,
+            telegram_id=callback.from_user.id,
+            amount=amount,
+            description=f"Подписка VPN на {plan['days']} дней"
+        )
+        
+        if not transaction:
+            await callback.answer("❌ Не удалось создать транзакцию", show_alert=True)
+            return
+        
+        # Создаем счет на оплату
+        prices = [LabeledPrice(label="XTR", amount=rub_to_stars(amount))]
+        
+        # Отправляем инвойс
+        await callback.message.answer_invoice(
+            title=f"Подписка VPN на {plan['days']} дней",
+            description=f"Доступ к VPN сервису на {plan['days']} дней",
+            prices=prices,
+            provider_token="",  # Для Telegram Stars оставляем пустую строку
+            payload=f"subscription_{transaction.order_id}",
+            currency="XTR",
+            reply_markup=payment_keyboard(rub_to_stars(amount)),
+        )
+        
+        # Сохраняем order_id в состоянии
+        await state.update_data(order_id=transaction.order_id)
+        await state.set_state(PaymentStates.waiting_for_payment_check)
+        
+        # Удаляем предыдущее сообщение с кнопками
+        await callback.message.delete()
+        
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Error starting payment from callback: {e}")
+        await callback.answer("❌ Произошла ошибка при начале оплаты", show_alert=True)

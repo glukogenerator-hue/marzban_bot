@@ -27,6 +27,14 @@ async def main():
     # Инициализация БД
     await db_manager.init_db()
     
+    # Синхронизация пользователей из Marzban при первом старте (если база пуста)
+    try:
+        synced_count = await db_manager.sync_marzban_users()
+        if synced_count > 0:
+            logger.info(f"Синхронизировано {synced_count} пользователей из Marzban")
+    except Exception as e:
+        logger.error(f"Ошибка синхронизации пользователей из Marzban: {e}")
+    
     # Логируем загруженные настройки
     logger.info(f"Bot started")
     logger.info(f"Admin IDs loaded: {settings.ADMIN_IDS} (type: {type(settings.ADMIN_IDS)})")

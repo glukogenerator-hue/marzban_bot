@@ -7,7 +7,7 @@ def get_main_keyboard(has_subscription: bool = False) -> ReplyKeyboardMarkup:
         has_subscription: True если у пользователя есть активная подписка
     """
     keyboard = [
-        [KeyboardButton(text="📊 Моя подписка"), KeyboardButton(text="🔗 Подключение")],
+        [KeyboardButton(text="📊 Моя подписка")],
     ]
     
     # Показываем разные кнопки в зависимости от наличия подписки
@@ -33,12 +33,15 @@ def get_settings_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_subscription_keyboard(has_trial: bool) -> InlineKeyboardMarkup:
+def get_subscription_keyboard(has_trial: bool, has_active_subscription: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура подписки"""
     keyboard = []
     
     if not has_trial:
         keyboard.append([InlineKeyboardButton(text="🎁 Получить тестовый доступ", callback_data="get_trial")])
+    
+    if has_active_subscription:
+        keyboard.append([InlineKeyboardButton(text="⚙️ Настройка подключения", callback_data="connection_settings")])
     
     keyboard.append([InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_subscription")])
     

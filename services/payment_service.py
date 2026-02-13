@@ -36,8 +36,8 @@ class PaymentService:
         return providers
     
     async def activate_subscription_after_payment(
-        self, 
-        user_id: int, 
+        self,
+        user_id: int,
         order_id: str,
         plan_data: Dict[str, Any]
     ) -> bool:
@@ -62,11 +62,29 @@ class PaymentService:
             # Получаем информацию о плане
             days = plan_data.get('days', 30)
             
-            # Обновляем пользователя в Marzban (только срок действия, без лимита трафика)
+            # Определяем дату окончания новой подписки
+            now = datetime.now()
+            
+            if user.is_active and user.expire_date and user.expire_date > now:
+                # Подписка активна, прибавляем дни к следующему дню после окончания
+                # Используем max чтобы избежать ситуаций, когда expire_date в прошлом
+                base_date = max(user.expire_date, now)
+                new_expire_date = base_date + timedelta(days=days)
+                logger.info(f"Active subscription found. Extending from {user.expire_date} to {new_expire_date}")
+            else:
+                # Нет активной подписки, начинаем с текущей даты
+                new_expire_date = now + timedelta(days=days)
+                logger.info(f"No active subscription. Setting new expire date: {new_expire_date}")
+            
+            # Передаем timestamp новой даты окончания (Marzban сам преобразует в дни)
+            expire_timestamp = int(new_expire_date.timestamp())
+            
+            # Обновляем пользователя в Marzban - устанавливаем безлимитный трафик (0) и новую дату окончания
             success = await self.marzban_service.update_user(
                 username=user.marzban_username,
                 update_data={
-                    "expire": int(datetime.now().timestamp()) + (86400 * days)
+                    "expire": expire_timestamp,  # передаем timestamp
+                    "data_limit": 0  # безлимитный трафик для платной подписки
                 }
             )
             
@@ -77,8 +95,9 @@ class PaymentService:
                 await self.user_service.update_user(
                     telegram_id=user_id,
                     update_data={
-                        "subscription_expires": datetime.now() + timedelta(days=days),
-                        "subscription_status": "active"
+                        "expire_date": new_expire_date,
+                        "is_active": True,
+                        "data_limit": 0  # безлимитный трафик
                     }
                 )
                 
@@ -127,7 +146,7 @@ class PaymentService:
             
             # Здесь должна быть логика вызова API Telegram для возврата средств
             # Временно просто отмечаем транзакцию как возвращенную
-            await db_manager.update_transaction(
+            await db_manager.update_transaction_by_order_id(
                 order_id=order_id,
                 status="refunded",
                 refund_date=datetime.now()

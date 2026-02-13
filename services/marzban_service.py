@@ -53,19 +53,47 @@ class MarzbanService:
         exceptions=(Exception,),
         circuit_breaker_key="marzban_api"
     )
-    async def update_user(self, username: str, update_data: MarzbanUserUpdateSchema) -> bool:
+    async def update_user(self, username: str, update_data) -> bool:
         """Обновить пользователя в Marzban"""
-        update_dict = update_data.dict(exclude_unset=True)
+        # Преобразуем update_data в словарь
+        if isinstance(update_data, dict):
+            update_dict = update_data
+        else:
+            # Предполагаем, что это MarzbanUserUpdateSchema
+            update_dict = update_data.dict(exclude_unset=True)
         
         if not update_dict:
             raise ValueError("No data to update")
         
-        # Конвертируем expire_days в timestamp если нужно
-        if 'expire' in update_dict:
-            expire_timestamp = int((datetime.utcnow() + timedelta(days=update_dict['expire'])).timestamp())
-            update_dict['expire'] = expire_timestamp
+        # Извлекаем параметры для API
+        data_limit = update_dict.get('data_limit')
+        status = update_dict.get('status')
+        expire_days = None
         
-        await self.api.update_user(username, **update_dict)
+        # Обрабатываем expire
+        if 'expire' in update_dict:
+            expire_value = update_dict['expire']
+            # Если это timestamp (большое число), конвертируем в дни
+            if expire_value > 10000000000:  # Предполагаем, что это timestamp
+                # Вычисляем разницу в днях от текущего времени
+                from datetime import datetime
+                now_timestamp = int(datetime.utcnow().timestamp())
+                days_diff = (expire_value - now_timestamp) // 86400
+                if days_diff > 0:
+                    expire_days = days_diff
+                else:
+                    expire_days = 1  # минимально 1 день
+            else:
+                # Предполагаем, что это уже дни
+                expire_days = expire_value
+        
+        # Вызываем API
+        await self.api.update_user(
+            username=username,
+            data_limit=data_limit,
+            expire_days=expire_days,
+            status=status
+        )
         logger.info(f"Updated Marzban user: {username}")
         return True
     

@@ -163,6 +163,11 @@ class MarzbanAPI:
             logger.error(f"Failed to delete user {username}: {e}")
             return False
     
+    async def get_users(self, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
+        """Получить список пользователей Marzban"""
+        params = {"offset": offset, "limit": limit}
+        return await self._make_request("GET", "/api/users", params=params)
+
     async def get_user_usage(self, username: str) -> Dict[str, Any]:
         """Получить использование трафика пользователем"""
         user_data = await self.get_user(username)

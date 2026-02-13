@@ -46,3 +46,23 @@ def get_traffic_percentage(used: int, limit: int) -> float:
     if limit == 0:
         return 0
     return (used / limit) * 100
+
+def extract_telegram_id_from_username(username: str) -> Optional[int]:
+    """
+    Извлечь telegram_id из имени пользователя в формате user_telegram_id_timestamp
+    Пример: user_124094154_1771011293 -> 124094154
+    """
+    if not username.startswith("user_"):
+        return None
+    
+    try:
+        # Разделяем по нижнему подчеркиванию
+        parts = username.split("_")
+        if len(parts) < 3:
+            return None
+        
+        # Вторая часть должна быть telegram_id
+        telegram_id_str = parts[1]
+        return int(telegram_id_str)
+    except (ValueError, IndexError):
+        return None

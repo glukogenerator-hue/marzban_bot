@@ -38,20 +38,31 @@ class DatabaseManager:
             )
             return result.scalar_one_or_none()
     
-    async def create_user(self, telegram_id: int, username: str = None, 
-                         first_name: str = None, last_name: str = None) -> User:
+    async def create_user(self, telegram_id: int = None, username: str = None,
+                         first_name: str = None, last_name: str = None,
+                         marzban_username: str = None, subscription_url: str = None,
+                         is_active: bool = False, data_limit: int = None,
+                         expire_date: datetime = None, used_traffic: int = 0,
+                         trial_used: bool = False) -> User:
         """Создать пользователя"""
         async with self.async_session() as session:
             user = User(
                 telegram_id=telegram_id,
                 username=username,
                 first_name=first_name,
-                last_name=last_name
+                last_name=last_name,
+                marzban_username=marzban_username,
+                subscription_url=subscription_url,
+                is_active=is_active,
+                data_limit=data_limit,
+                expire_date=expire_date,
+                used_traffic=used_traffic,
+                trial_used=trial_used
             )
             session.add(user)
             await session.commit()
             await session.refresh(user)
-            logger.info(f"User created: {telegram_id}")
+            logger.info(f"User created: {telegram_id or marzban_username}")
             return user
     
     async def update_user(self, telegram_id: int, **kwargs) -> bool:
@@ -92,6 +103,72 @@ class DatabaseManager:
                 query = query.where(User.is_active == True)
             result = await session.execute(query)
             return result.scalar()
+
+    async def sync_marzban_users(self) -> int:
+        """Синхронизировать пользователей из Marzban (только если база пуста)"""
+        from marzban.api_client import marzban_api
+        from datetime import datetime
+        from utils.helpers import extract_telegram_id_from_username
+        
+        # Проверяем, есть ли уже пользователи в базе
+        users_count = await self.get_users_count()
+        if users_count > 0:
+            logger.info(f"База данных уже содержит {users_count} пользователей, синхронизация не требуется")
+            return 0
+        
+        try:
+            # Получаем список пользователей из Marzban
+            response = await marzban_api.get_users(limit=1000)
+            users = response.get("users", [])
+            created_count = 0
+            
+            for marzban_user in users:
+                username = marzban_user.get("username")
+                if not username:
+                    continue
+                
+                # Извлекаем telegram_id из имени пользователя (только для пользователей, созданных ботом)
+                telegram_id = extract_telegram_id_from_username(username)
+                if not telegram_id:
+                    # Пропускаем пользователей, не созданных ботом (не соответствующих шаблону)
+                    continue
+                
+                # Проверяем, существует ли уже пользователь с таким telegram_id
+                async with self.async_session() as session:
+                    result = await session.execute(
+                        select(User).where(User.telegram_id == telegram_id)
+                    )
+                    existing = result.scalar_one_or_none()
+                    if existing:
+                        # Пользователь уже существует, возможно обновить данные
+                        continue
+                
+                # Получаем информацию о подписке
+                expire_timestamp = marzban_user.get("expire")
+                expire_date = datetime.fromtimestamp(expire_timestamp) if expire_timestamp else None
+                status = marzban_user.get("status", "disabled")
+                is_active = status == "active"
+                
+                # Создаем пользователя с извлеченным telegram_id
+                await self.create_user(
+                    telegram_id=telegram_id,
+                    marzban_username=username,
+                    subscription_url=marzban_user.get("subscription_url"),
+                    is_active=is_active,
+                    data_limit=marzban_user.get("data_limit"),
+                    expire_date=expire_date,
+                    used_traffic=marzban_user.get("used_traffic", 0),
+                    trial_used=False  # Не помечаем как тестовый
+                )
+                created_count += 1
+                logger.info(f"Создан пользователь из Marzban: {username} (telegram_id: {telegram_id})")
+            
+            logger.info(f"Синхронизация завершена. Создано {created_count} пользователей (только созданные ботом)")
+            return created_count
+            
+        except Exception as e:
+            logger.error(f"Ошибка синхронизации пользователей из Marzban: {e}")
+            return 0
     
     async def get_expiring_users(self, days: int = 3) -> List[User]:
         """Получить пользователей с истекающей подпиской"""
@@ -108,15 +185,20 @@ class DatabaseManager:
     
     # ========== Transaction operations ==========
     
-    async def create_transaction(self, user_id: int, telegram_id: int, 
+    async def create_transaction(self, user_id: int, telegram_id: int,
                                  amount: float, description: str = None) -> Transaction:
         """Создать транзакцию"""
         async with self.async_session() as session:
+            # Генерируем order_id
+            import uuid
+            order_id = f"order_{uuid.uuid4().hex[:10]}"
+            
             transaction = Transaction(
                 user_id=user_id,
                 telegram_id=telegram_id,
                 amount=amount,
-                description=description
+                description=description,
+                order_id=order_id
             )
             session.add(transaction)
             await session.commit()
@@ -129,6 +211,17 @@ class DatabaseManager:
             result = await session.execute(
                 update(Transaction)
                 .where(Transaction.id == transaction_id)
+                .values(**kwargs, updated_at=datetime.utcnow())
+            )
+            await session.commit()
+            return result.rowcount > 0
+    
+    async def update_transaction_by_order_id(self, order_id: str, **kwargs) -> bool:
+        """Обновить транзакцию по order_id"""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(Transaction)
+                .where(Transaction.order_id == order_id)
                 .values(**kwargs, updated_at=datetime.utcnow())
             )
             await session.commit()

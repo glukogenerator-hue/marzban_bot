@@ -10,7 +10,7 @@ class User(AsyncAttrs, Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=True, index=True)
     username = Column(String(32), nullable=True, index=True)
     first_name = Column(String(64), nullable=True)
     last_name = Column(String(64), nullable=True)

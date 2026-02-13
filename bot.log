@@ -1,53 +1,47 @@
-2026-01-15 00:03:10 - MarzbanBot - INFO - Database initialized
-2026-01-15 00:03:10 - MarzbanBot - INFO - Bot started
-2026-01-15 00:03:10 - MarzbanBot - INFO - Admin IDs loaded: [123456789, 987654321] (type: <class 'list'>)
-2026-01-15 00:03:11 - MarzbanBot - ERROR - Failed to notify admin 123456789: Telegram server says - Bad Request: chat not found
-2026-01-15 00:03:11 - MarzbanBot - ERROR - Failed to notify admin 987654321: Telegram server says - Bad Request: chat not found
-2026-01-15 00:03:24 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:41 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:44 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:44 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:45 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:45 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:47 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:04:47 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:15:38 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-01-15 00:15:39 - MarzbanBot - WARNING - Unauthorized admin access attempt: 124094154
-2026-02-13 22:34:22 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:34:25 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
-2026-02-13 22:36:14 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:36:17 - MarzbanBot - INFO - Cleaned up 1 expired cache entries
-2026-02-13 22:36:17 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
-2026-02-13 22:38:23 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:38:34 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:39:12 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:39:21 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:39:24 - MarzbanBot - INFO - Cleaned up 1 expired cache entries
-2026-02-13 22:39:24 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
-2026-02-13 22:59:10 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 22:59:13 - MarzbanBot - INFO - Cleaned up 1 expired cache entries
-2026-02-13 22:59:13 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
-2026-02-13 23:10:53 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 23:10:56 - MarzbanBot - INFO - Cleaned up 1 expired cache entries
-2026-02-13 23:10:57 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
-2026-02-13 23:15:18 - MarzbanBot - INFO - Logging to bot.log with rotation
-2026-02-13 23:15:21 - MarzbanBot - INFO - Cleaned up 1 expired cache entries
-2026-02-13 23:15:21 - MarzbanBot - ERROR - Validation error: 1 validation error for UserCreateSchema
-telegram_id
-  Input should be greater than 0 [type=greater_than, input_value=-1, input_type=int]
-    For further information visit https://errors.pydantic.dev/2.12/v/greater_than
+2026-02-14 01:28:05 - MarzbanBot - INFO - Logging to bot.log with rotation
+2026-02-14 01:28:06 - MarzbanBot - INFO - Database initialized
+2026-02-14 01:28:06 - MarzbanBot - INFO - Bot started
+2026-02-14 01:28:06 - MarzbanBot - INFO - Admin IDs loaded: [124094154] (type: <class 'list'>)
+2026-02-14 01:28:06 - MarzbanBot - INFO - Telegram Stars enabled: True
+2026-02-14 01:28:28 - MarzbanBot - INFO - User created: 124094154
+2026-02-14 01:34:54 - MarzbanBot - INFO - Marzban token obtained
+2026-02-14 01:34:54 - MarzbanBot - INFO - Marzban user created: user_124094154_1771011293
+2026-02-14 01:42:08 - MarzbanBot - INFO - Logging to bot.log with rotation
+2026-02-14 01:42:52 - MarzbanBot - INFO - Logging to bot.log with rotation
+2026-02-14 01:42:52 - MarzbanBot - INFO - Database initialized
+2026-02-14 01:42:53 - MarzbanBot - INFO - Marzban token obtained
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: us_689390214
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: us_689390214
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: morkin
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: morkin
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: admin
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: admin
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: user_5356241242
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: user_5356241242
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: aniks-vpn
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: aniks-vpn
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: test
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: test
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: EvgSV
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: EvgSV
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: User_20
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: User_20
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: s_peryakov
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: s_peryakov
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: user_21
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: user_21
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: polina
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: polina
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: igor
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: igor
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: user_124094154_1771008944
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: user_124094154_1771008944
+2026-02-14 01:42:54 - MarzbanBot - INFO - User created: user_124094154_1771011293
+2026-02-14 01:42:54 - MarzbanBot - INFO - Создан пользователь из Marzban: user_124094154_1771011293
+2026-02-14 01:42:54 - MarzbanBot - INFO - Синхронизация завершена. Создано 14 пользователей
+2026-02-14 01:42:54 - MarzbanBot - INFO - Синхронизировано 14 пользователей из Marzban
+2026-02-14 01:42:54 - MarzbanBot - INFO - Bot started
+2026-02-14 01:42:54 - MarzbanBot - INFO - Admin IDs loaded: [124094154] (type: <class 'list'>)
+2026-02-14 01:42:54 - MarzbanBot - INFO - Telegram Stars enabled: True
+2026-02-14 01:43:04 - MarzbanBot - INFO - User created: 124094154
+2026-02-14 01:52:01 - MarzbanBot - INFO - Logging to bot.log with rotation
