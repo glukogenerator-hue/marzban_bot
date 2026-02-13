@@ -358,31 +358,6 @@ async def toggle_expire_notifications(callback: CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
 
-@user_router.callback_query(F.data == "settings_traffic")
-@user_registered
-async def toggle_traffic_notifications(callback: CallbackQuery):
-    """Переключить уведомления о трафике"""
-    user = await db_manager.get_user(callback.from_user.id)
-    new_value = not user.notify_on_traffic
-    await db_manager.update_user(callback.from_user.id, notify_on_traffic=new_value)
-    
-    status = "включены" if new_value else "выключены"
-    await callback.answer(f"✅ Уведомления о трафике {status}")
-    
-    # Обновляем сообщение
-    user = await db_manager.get_user(callback.from_user.id)
-    notifications_status = "✅ Включены" if user.notifications_enabled else "❌ Выключены"
-    expire_status = "✅ Включены" if user.notify_on_expire else "❌ Выключены"
-    
-    text = (
-        f"⚙️ <b>Настройки</b>\n\n"
-        f"🔔 Уведомления: {notifications_status}\n"
-        f"⏰ Уведомления об истечении: {expire_status}\n"
-        f"Выберите настройку для изменения:"
-    )
-    
-    await callback.message.edit_text(text, reply_markup=get_settings_keyboard(), parse_mode="HTML")
-
 @user_router.callback_query(F.data == "refresh_subscription")
 @user_registered
 async def refresh_subscription(callback: CallbackQuery):
@@ -667,7 +642,7 @@ async def show_help(message: Message):
         "• <b>Linux:</b> Qv2ray, Clash\n\n"
         "<b>💡 Полезные советы:</b>\n"
         "1. Для подключения используйте ссылку подписки или QR код из раздела 'Моя подписка' → 'Настройка подключения'.\n"
-        "2. Уведомления о трафике и истечении подписки можно настроить в меню '⚙️ Настройки'.\n"
+        "2. Уведомления об истечении подписки можно настроить в меню '⚙️ Настройки'.\n"
         "3. При проблемах с подключением перезапустите VPN клиент и обновите подписку.\n"
         "4. Тестовый доступ предоставляется на 7 дней с ограниченным трафиком.\n"
         "5. Для экономии трафика отключайте VPN при загрузке больших файлов или просмотре локального контента.\n"

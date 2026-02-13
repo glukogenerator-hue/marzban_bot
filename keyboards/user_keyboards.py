@@ -28,7 +28,6 @@ def get_settings_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton(text="🔔 Уведомления", callback_data="settings_notifications")],
         [InlineKeyboardButton(text="⏰ Уведомления об истечении", callback_data="settings_expire")],
-        [InlineKeyboardButton(text="📊 Уведомления о трафике", callback_data="settings_traffic")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="settings_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

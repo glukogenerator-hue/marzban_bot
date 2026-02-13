@@ -45,7 +45,6 @@ class UserUpdateSchema(BaseModel):
     trial_used: Optional[bool] = None
     notifications_enabled: Optional[bool] = None
     notify_on_expire: Optional[bool] = None
-    notify_on_traffic: Optional[bool] = None
 
 
 class UserResponseSchema(UserBase):
@@ -60,7 +59,6 @@ class UserResponseSchema(UserBase):
     trial_used: bool
     notifications_enabled: bool
     notify_on_expire: bool
-    notify_on_traffic: bool
     created_at: datetime
     updated_at: datetime
     

@@ -31,7 +31,6 @@ class User(AsyncAttrs, Base):
     # Notifications
     notifications_enabled = Column(Boolean, default=True)
     notify_on_expire = Column(Boolean, default=True)
-    notify_on_traffic = Column(Boolean, default=True)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

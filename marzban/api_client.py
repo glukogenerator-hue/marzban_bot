@@ -171,10 +171,21 @@ class MarzbanAPI:
     async def get_user_usage(self, username: str) -> Dict[str, Any]:
         """Получить использование трафика пользователем"""
         user_data = await self.get_user(username)
+        
+        # Обеспечиваем числовые значения, даже если API возвращает None
+        used_traffic = user_data.get("used_traffic")
+        data_limit = user_data.get("data_limit")
+        expire = user_data.get("expire")
+        
+        # Преобразуем None в 0
+        used_traffic = 0 if used_traffic is None else int(used_traffic)
+        data_limit = 0 if data_limit is None else int(data_limit)
+        expire = 0 if expire is None else int(expire)
+        
         return {
-            "used_traffic": user_data.get("used_traffic", 0),
-            "data_limit": user_data.get("data_limit", 0),
-            "expire": user_data.get("expire", 0),
+            "used_traffic": used_traffic,
+            "data_limit": data_limit,
+            "expire": expire,
             "status": user_data.get("status", "unknown")
         }
 
