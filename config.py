@@ -52,12 +52,13 @@ class Settings(BaseSettings):
     TRIAL_DATA_LIMIT: int = 10737418240  # 10 GB
     TRIAL_EXPIRE_DAYS: int = 3
     
-    # Subscription plans (days, data_limit in bytes, price in rubles)
+    # Subscription plans (days, price in rubles)
+    # Лимит трафика используется только на тестовом периоде
     SUBSCRIPTION_PLANS: dict = {
-        "1": {"days": 30, "data_limit": 107374182400, "price": 300},  # 100 GB
-        "3": {"days": 90, "data_limit": 322122547200, "price": 750},  # 300 GB
-        "6": {"days": 180, "data_limit": 644245094400, "price": 1000},  # 600 GB
-        "12": {"days": 365, "data_limit": 1288490188800, "price": 2000}  # 1.2 TB
+        "1": {"days": 30, "price": 300},
+        "3": {"days": 90, "price": 750},
+        "6": {"days": 180, "price": 1000},
+        "12": {"days": 365, "price": 2000}
     }
     
     # API settings
@@ -69,6 +70,13 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ENABLE_LOGGING: bool = True
     LOG_FILE: str = "bot.log"
+    LOG_MAX_SIZE: int = 10_485_760  # 10 MB
+    LOG_BACKUP_COUNT: int = 5
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"
+    
+    # Telegram Stars payment
+    TELEGRAM_STARS_ENABLED: bool = True
     
     class Config:
         env_file = ".env"

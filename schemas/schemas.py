@@ -95,6 +95,20 @@ class SubscriptionCreateSchema(BaseModel):
         if not re.match(r'^[a-zA-Z0-9_]+$', v):
             raise ValueError('Username can only contain letters, numbers and underscore')
         return v
+    
+    @validator('data_limit')
+    def validate_data_limit(cls, v):
+        # Проверяем, что лимит в разумных пределах (от 1 ГБ до 10 ТБ)
+        if v < 1_073_741_824 or v > 10_995_116_277_760:
+            raise ValueError('Data limit must be between 1GB and 10TB')
+        return v
+    
+    @validator('expire_days')
+    def validate_expire_days(cls, v):
+        # Дополнительная проверка (уже есть le=365 в Field)
+        if v <= 0 or v > 365:
+            raise ValueError('Expire days must be between 1 and 365')
+        return v
 
 
 class SubscriptionInfoSchema(BaseModel):

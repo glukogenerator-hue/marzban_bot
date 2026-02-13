@@ -1,11 +1,13 @@
 """
 Централизованная обработка ошибок
 """
+import asyncio
 import logging
 from typing import Optional, Union, Any
 from aiogram.types import Message, CallbackQuery
 from schemas.schemas import ErrorResponseSchema
 from utils.logger import logger
+import sqlalchemy.exc
 
 
 class BotErrorHandler:
@@ -36,17 +38,43 @@ class BotErrorHandler:
     def format_user_message(error: Exception) -> str:
         """Форматировать ошибку для показа пользователю"""
         import aiohttp
+        import sqlalchemy.exc
         
+        error_type = type(error)
+        
+        # Сетевые ошибки
         if isinstance(error, aiohttp.ClientError):
             return "❌ Сервис временно недоступен. Попробуйте позже."
-        elif isinstance(error, asyncio.TimeoutError):
+        elif isinstance(error, (asyncio.TimeoutError, TimeoutError)):
             return "⏰ Превышено время ожидания. Попробуйте еще раз."
+        elif isinstance(error, ConnectionError):
+            return "🔌 Проблема с подключением. Проверьте интернет."
+        
+        # Ошибки базы данных
+        elif isinstance(error, sqlalchemy.exc.OperationalError):
+            return "🗄️ Ошибка базы данных. Попробуйте позже."
+        elif isinstance(error, sqlalchemy.exc.IntegrityError):
+            return "🗄️ Ошибка целостности данных. Возможно, запись уже существует."
+        
+        # Бизнес-логика
         elif isinstance(error, ValueError):
-            return f"❌ Ошибка в данных: {error}"
+            # Берем только первую строку сообщения об ошибке
+            error_msg = str(error).split('\n')[0]
+            return f"❌ Ошибка в данных: {error_msg[:100]}"
         elif isinstance(error, PermissionError):
             return "❌ Недостаточно прав для выполнения операции."
+        elif isinstance(error, FileNotFoundError):
+            return "📁 Файл не найден."
+        elif isinstance(error, ImportError):
+            return "🔧 Ошибка загрузки модуля."
+        
+        # Общие ошибки
         else:
-            return "❌ Произошла ошибка. Попробуйте позже."
+            # Для неизвестных ошибок показываем общее сообщение
+            error_name = error_type.__name__
+            if "marzban" in error_name.lower() or "api" in error_name.lower():
+                return "🌐 Ошибка API сервиса. Попробуйте позже."
+            return "❌ Произошла ошибка. Попробуйте позже или обратитесь к администратору."
     
     @staticmethod
     async def handle_error(

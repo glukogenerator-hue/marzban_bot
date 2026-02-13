@@ -1,6 +1,7 @@
 import logging
 import sys
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 from config import settings
 
 class Logger:
@@ -22,10 +23,10 @@ class Logger:
         if settings.ENABLE_LOGGING:
             self.logger.setLevel(getattr(logging, settings.LOG_LEVEL))
             
-            # Форматтер
+            # Форматтер из настроек или по умолчанию
             formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
+                settings.LOG_FORMAT,
+                datefmt=settings.LOG_DATE_FORMAT
             )
             
             # Console handler
@@ -33,12 +34,29 @@ class Logger:
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
             
-            # File handler
-            file_handler = logging.FileHandler(settings.LOG_FILE, encoding='utf-8')
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
+            # Rotating file handler
+            try:
+                file_handler = RotatingFileHandler(
+                    settings.LOG_FILE,
+                    maxBytes=settings.LOG_MAX_SIZE,
+                    backupCount=settings.LOG_BACKUP_COUNT,
+                    encoding='utf-8'
+                )
+                file_handler.setFormatter(formatter)
+                self.logger.addHandler(file_handler)
+                self.logger.info(f"Logging to {settings.LOG_FILE} with rotation")
+            except Exception as e:
+                # Fallback to basic FileHandler if rotation fails
+                self.logger.error(f"Failed to setup rotating logs: {e}")
+                file_handler = logging.FileHandler(settings.LOG_FILE, encoding='utf-8')
+                file_handler.setFormatter(formatter)
+                self.logger.addHandler(file_handler)
+                self.logger.warning("Using basic file handler instead of rotating")
         else:
             self.logger.addHandler(logging.NullHandler())
+        
+        # Prevent propagation to root logger
+        self.logger.propagate = False
     
     def get_logger(self):
         return self.logger

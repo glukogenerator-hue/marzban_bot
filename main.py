@@ -6,6 +6,7 @@ from config import settings
 from database.db_manager import db_manager
 from handlers.user_handlers import user_router
 from handlers.admin_handlers import admin_router
+from handlers.payment_handlers import payment_router
 from utils.logger import logger
 
 async def main():
@@ -21,6 +22,7 @@ async def main():
     # Регистрация роутеров
     dp.include_router(admin_router)
     dp.include_router(user_router)
+    dp.include_router(payment_router)
     
     # Инициализация БД
     await db_manager.init_db()
@@ -28,6 +30,7 @@ async def main():
     # Логируем загруженные настройки
     logger.info(f"Bot started")
     logger.info(f"Admin IDs loaded: {settings.ADMIN_IDS} (type: {type(settings.ADMIN_IDS)})")
+    logger.info(f"Telegram Stars enabled: {settings.TELEGRAM_STARS_ENABLED}")
     
     try:
         # Уведомляем админов о запуске

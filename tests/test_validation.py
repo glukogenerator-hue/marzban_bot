@@ -3,7 +3,7 @@
 """
 import pytest
 from datetime import datetime
-from types.schemas import (
+from schemas.schemas import (
     UserCreateSchema,
     SubscriptionCreateSchema,
     MessageCreateSchema,
