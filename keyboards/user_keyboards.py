@@ -37,7 +37,10 @@ def get_subscription_keyboard(has_trial: bool, has_active_subscription: bool = F
     """Клавиатура подписки"""
     keyboard = []
     
-    if not has_trial:
+    # Кнопка "Получить тестовый доступ" показывается только если:
+    # 1. Пользователь еще не использовал тестовый доступ (not has_trial)
+    # 2. У пользователя нет активной подписки (not has_active_subscription)
+    if not has_trial and not has_active_subscription:
         keyboard.append([InlineKeyboardButton(text="🎁 Получить тестовый доступ", callback_data="get_trial")])
     
     if has_active_subscription:

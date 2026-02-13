@@ -76,14 +76,16 @@ class PaymentService:
                 new_expire_date = now + timedelta(days=days)
                 logger.info(f"No active subscription. Setting new expire date: {new_expire_date}")
             
-            # Передаем timestamp новой даты окончания (Marzban сам преобразует в дни)
-            expire_timestamp = int(new_expire_date.timestamp())
+            # Вычисляем количество дней до новой даты окончания
+            days_until_expire = (new_expire_date - now).days
+            if days_until_expire <= 0:
+                days_until_expire = 1  # минимально 1 день
             
-            # Обновляем пользователя в Marzban - устанавливаем безлимитный трафик (0) и новую дату окончания
+            # Обновляем пользователя в Marzban - устанавливаем безлимитный трафик (0) и количество дней
             success = await self.marzban_service.update_user(
                 username=user.marzban_username,
                 update_data={
-                    "expire": expire_timestamp,  # передаем timestamp
+                    "expire": days_until_expire,  # передаем количество дней
                     "data_limit": 0  # безлимитный трафик для платной подписки
                 }
             )
