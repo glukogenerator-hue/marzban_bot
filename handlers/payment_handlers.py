@@ -76,7 +76,7 @@ async def start_payment(message: Message, state: FSMContext):
     
     for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
         stars = rub_to_stars(plan["price"])
-        text += f"🔹 {plan['price']}₽ ({stars} ⭐️) - {plan['days']} дней\n"
+        text += f"🔹 {stars} ⭐️ (≈{plan['price']}₽) - {plan['days']} дней\n"
     
     text += "\nВведите сумму платежа (например: 300):"
     
@@ -386,7 +386,7 @@ async def renew_subscription_payment(message: Message, state: FSMContext):
         
         for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
             stars = rub_to_stars(plan["price"])
-            text += f"🔹 {plan['price']}₽ ({stars} ⭐️) - +{plan['days']} дней\n"
+            text += f"🔹 {stars} ⭐️ (≈{plan['price']}₽) - +{plan['days']} дней\n"
         
         text += "\nВведите сумму для продления (например: 300):"
         

@@ -53,13 +53,16 @@ def get_subscription_keyboard(has_trial: bool, has_active_subscription: bool = F
 def get_plans_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура тарифных планов"""
     from config import settings
+    from handlers.payment_handlers import rub_to_stars
+    
     keyboard = []
     
     for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
         months = plan['days'] // 30
+        stars = rub_to_stars(plan['price'])
         keyboard.append([
             InlineKeyboardButton(
-                text=f"{months} месяц(а/ев) - {plan['price']}₽",
+                text=f"{months} месяц(а/ев) - {stars} ⭐️ (≈{plan['price']}₽)",
                 callback_data=f"buy_plan_{plan_id}"
             )
         ])
