@@ -33,8 +33,9 @@ def rub_to_stars(rub_amount: float) -> int:
     Returns:
         int: Количество звезд
     """
-    # Для тестирования всегда возвращаем 1 звезду
-    return 1
+    # Конвертируем рубли в звезды (округляем вверх до целого числа)
+    stars = int(rub_amount / 7)
+    return max(1, stars)  # минимум 1 звезда
 
 
 def get_plan_by_amount(amount: float) -> dict:
@@ -76,7 +77,7 @@ async def start_payment(message: Message, state: FSMContext):
     
     for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
         stars = rub_to_stars(plan["price"])
-        text += f"🔹 {stars} ⭐️ (≈{plan['price']}₽) - {plan['days']} дней\n"
+        text += f"🔹 {stars} ⭐️ ({plan['price']}₽) - доступ к материалам на {plan['days']} дней\n"
     
     text += "\nВведите сумму платежа (например: 300):"
     
@@ -122,7 +123,7 @@ async def process_amount(message: Message, state: FSMContext):
             user_id=user.id,
             telegram_id=message.from_user.id,
             amount=amount,
-            description=f"Подписка VPN на {plan['days']} дней"
+            description=f"Добровольная благодарность за доступ к материалам проекта на {plan['days']} дней"
         )
         
         if not transaction:
@@ -134,8 +135,8 @@ async def process_amount(message: Message, state: FSMContext):
         prices = [LabeledPrice(label="XTR", amount=stars_amount)]
         
         await message.answer_invoice(
-            title=f"Подписка VPN на {plan['days']} дней",
-            description=f"Доступ к VPN сервису на {plan['days']} дней",
+            title=f"Доступ к материалам проекта на {plan['days']} дней",
+            description=f"Добровольная благодарность за доступ к материалам проекта на {plan['days']} дней",
             prices=prices,
             provider_token="",  # Для Telegram Stars оставляем пустую строку
             payload=f"subscription_{transaction.order_id}",
@@ -386,7 +387,7 @@ async def renew_subscription_payment(message: Message, state: FSMContext):
         
         for plan_id, plan in settings.SUBSCRIPTION_PLANS.items():
             stars = rub_to_stars(plan["price"])
-            text += f"🔹 {stars} ⭐️ (≈{plan['price']}₽) - +{plan['days']} дней\n"
+            text += f"🔹 {stars} ⭐️ ({plan['price']}₽) - продление доступа к материалам на +{plan['days']} дней\n"
         
         text += "\nВведите сумму для продления (например: 300):"
         
@@ -435,7 +436,7 @@ async def start_payment_from_callback(callback: CallbackQuery, state: FSMContext
             user_id=user.id,
             telegram_id=callback.from_user.id,
             amount=amount,
-            description=f"Подписка VPN на {plan['days']} дней"
+            description=f"Добровольная благодарность за доступ к материалам проекта на {plan['days']} дней"
         )
         
         if not transaction:
@@ -447,8 +448,8 @@ async def start_payment_from_callback(callback: CallbackQuery, state: FSMContext
         
         # Отправляем инвойс
         await callback.message.answer_invoice(
-            title=f"Подписка VPN на {plan['days']} дней",
-            description=f"Доступ к VPN сервису на {plan['days']} дней",
+            title=f"Доступ к материалам проекта на {plan['days']} дней",
+            description=f"Добровольная благодарность за доступ к материалам проекта на {plan['days']} дней",
             prices=prices,
             provider_token="",  # Для Telegram Stars оставляем пустую строку
             payload=f"subscription_{transaction.order_id}",

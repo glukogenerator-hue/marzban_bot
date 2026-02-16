@@ -55,10 +55,10 @@ class Settings(BaseSettings):
     # Subscription plans (days, price in rubles)
     # Лимит трафика используется только на тестовом периоде
     SUBSCRIPTION_PLANS: dict = {
-        "1": {"days": 30, "price": 300},
-        "3": {"days": 90, "price": 750},
-        "6": {"days": 180, "price": 1000},
-        "12": {"days": 365, "price": 2000}
+        "1": {"days": 30, "price": 299},
+        "3": {"days": 90, "price": 699},
+        "6": {"days": 180, "price": 1299},
+        "12": {"days": 365, "price": 2499}
     }
     
     # API settings
