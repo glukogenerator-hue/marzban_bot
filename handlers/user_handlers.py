@@ -510,8 +510,9 @@ async def buy_plan(callback: CallbackQuery):
         keyboard = None
     else:
         # Платежная система включена - показываем информацию об оплате
-        # Для тестирования всегда 1 звезда
-        stars_amount = 1
+        # Используем реальную конвертацию рублей в звезды
+        from handlers.payment_handlers import rub_to_stars
+        stars_amount = rub_to_stars(plan['price'])
         
         text = (
             f"💳 <b>План: {plan_id} месяц(а/ев)</b>\n\n"
