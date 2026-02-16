@@ -529,7 +529,7 @@ async def buy_plan(callback: CallbackQuery):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text=f"💳 Оплатить {plan['price']}₽",
+                        text=f"💳 Оплатить {stars_amount} ⭐️",
                         callback_data=f"start_payment_{plan_id}"
                     )
                 ],
