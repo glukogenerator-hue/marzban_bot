@@ -81,32 +81,60 @@ class PaymentService:
             if days_until_expire <= 0:
                 days_until_expire = 1  # минимально 1 день
             
-            # Обновляем пользователя в Marzban - устанавливаем безлимитный трафик (0) и количество дней
-            success = await self.marzban_service.update_user(
-                username=user.marzban_username,
-                update_data={
-                    "expire": days_until_expire,  # передаем количество дней
-                    "data_limit": 0  # безлимитный трафик для платной подписки
-                }
-            )
-            
-            if success:
-                logger.info(f"Subscription activated for user {user_id}, order {order_id}")
+            # Проверяем, есть ли у пользователя аккаунт в Marzban
+            if not user.marzban_username:
+                # Создаем пользователя в Marzban
+                from utils.helpers import generate_username
+                username = generate_username(user_id)
+                
+                # Создаем пользователя в Marzban с безлимитным трафиком
+                marzban_user = await self.marzban_service.api.create_user(
+                    username=username,
+                    data_limit=0,  # безлимитный трафик
+                    expire_days=days_until_expire
+                )
                 
                 # Обновляем информацию о пользователе в локальной БД
                 await self.user_service.update_user(
                     telegram_id=user_id,
                     update_data={
+                        "marzban_username": username,
+                        "subscription_url": marzban_user.get('subscription_url', ''),
                         "expire_date": new_expire_date,
                         "is_active": True,
                         "data_limit": 0  # безлимитный трафик
                     }
                 )
                 
+                logger.info(f"Marzban user created and subscription activated for user {user_id}, order {order_id}")
                 return True
             else:
-                logger.error(f"Failed to update Marzban user {user.marzban_username}")
-                return False
+                # Обновляем пользователя в Marzban - устанавливаем безлимитный трафик (0) и количество дней
+                success = await self.marzban_service.update_user(
+                    username=user.marzban_username,
+                    update_data={
+                        "expire": days_until_expire,  # передаем количество дней
+                        "data_limit": 0  # безлимитный трафик для платной подписки
+                    }
+                )
+                
+                if success:
+                    logger.info(f"Subscription activated for user {user_id}, order {order_id}")
+                    
+                    # Обновляем информацию о пользователе в локальной БД
+                    await self.user_service.update_user(
+                        telegram_id=user_id,
+                        update_data={
+                            "expire_date": new_expire_date,
+                            "is_active": True,
+                            "data_limit": 0  # безлимитный трафик
+                        }
+                    )
+                    
+                    return True
+                else:
+                    logger.error(f"Failed to update Marzban user {user.marzban_username}")
+                    return False
                 
         except Exception as e:
             logger.error(f"Error activating subscription: {e}")

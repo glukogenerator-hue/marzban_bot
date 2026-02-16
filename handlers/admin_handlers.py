@@ -307,12 +307,28 @@ async def activate_user_callback(callback: CallbackQuery):
         return
     
     try:
-        await marzban_api.update_user(user.marzban_username, status="active")
-        await db_manager.update_user(telegram_id, is_active=True)
+        # Получаем текущий лимит трафика пользователя
+        current_data_limit = user.data_limit or 0
+        # Если лимит трафика равен 0 (безлимитный) или не установлен, оставляем 0
+        # Иначе устанавливаем безлимитный трафик (0) при активации администратором
+        # Для платных подписок лучше установить безлимитный трафик
+        data_limit = 0  # безлимитный трафик при активации админом
         
-        await callback.answer("✅ Пользователь активирован")
+        await marzban_api.update_user(
+            user.marzban_username,
+            status="active",
+            data_limit=data_limit
+        )
+        await db_manager.update_user(
+            telegram_id,
+            is_active=True,
+            data_limit=data_limit
+        )
+        
+        await callback.answer("✅ Пользователь активирован с безлимитным трафиком")
         await callback.message.edit_text(
             f"✅ Пользователь {telegram_id} активирован\n\n"
+            f"Лимит трафика: ♾️ Безлимитный\n"
             f"Используйте /user {telegram_id} для просмотра информации"
         )
     except Exception as e:
@@ -669,6 +685,7 @@ async def extend_user_subscription(callback: CallbackQuery):
         # Получаем текущую информацию из Marzban
         usage = await marzban_api.get_user_usage(user.marzban_username)
         current_expire = usage.get('expire', 0)
+        current_data_limit = usage.get('data_limit', 0) or user.data_limit or 0
         
         # Вычисляем новую дату истечения
         if current_expire:
@@ -693,7 +710,11 @@ async def extend_user_subscription(callback: CallbackQuery):
         async with session.put(
             f"{marzban_api.base_url}/api/user/{user.marzban_username}",
             headers=headers,
-            json={"expire": new_expire_timestamp, "status": "active"}
+            json={
+                "expire": new_expire_timestamp,
+                "status": "active",
+                "data_limit": current_data_limit  # Сохраняем текущий лимит трафика
+            }
         ) as resp:
             if resp.status not in [200, 201]:
                 error_text = await resp.text()
@@ -703,7 +724,8 @@ async def extend_user_subscription(callback: CallbackQuery):
         await db_manager.update_user(
             user.telegram_id,
             expire_date=new_expire,
-            is_active=True
+            is_active=True,
+            data_limit=current_data_limit
         )
         
         await callback.answer(f"✅ Подписка продлена на {days} дней!")
